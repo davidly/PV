@@ -597,7 +597,7 @@ private:
             IFDOffset += 8;
             isLeica = TRUE;
         }
-        else if ( !strcmp( g_acMake, "Leica Camera AG¤LEICA M MONOCHROM (Typ 246)" ) )
+        else if ( !strcmp( g_acMake, "Leica Camera AGÂ¤LEICA M MONOCHROM (Typ 246)" ) )
         {
             IFDOffset += 8;
             isLeica = TRUE;
@@ -2550,10 +2550,7 @@ public:
                             int * pWidth, int * pHeight, int * pFullWidth, int * pFullHeight )
     {
         UpdateCache( pwcPath );
-    
-        if ( ( 0 == g_Embedded_Image_Offset ) || ( 0 == g_Embedded_Image_Length ) )
-            return false;
-    
+   
         // Note that the embedded image has no orientation/rotate value. Use orientation from the outer RAW file
     
         *pOffset = g_Embedded_Image_Offset;
@@ -2563,7 +2560,10 @@ public:
         *pHeight = g_Embedded_Image_Height;
         *pFullWidth = g_ImageWidth;
         *pFullHeight = g_ImageHeight;
-    
+       
+         if ( ( 0 == g_Embedded_Image_Offset ) || ( 0 == g_Embedded_Image_Length ) )
+            return false;   
+       
         return true;
     } //FindEmbeddedJPG
     
