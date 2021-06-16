@@ -371,7 +371,10 @@ HRESULT CreateDeviceSwapChainBitmap( HWND hwnd )
     ComPtr<ID3D11Device> d3device;
     HRESULT hr = CreateDevice( D3D_DRIVER_TYPE_HARDWARE, d3device );
     if ( DXGI_ERROR_UNSUPPORTED == hr )
+    {
+        tracer.Trace( "GPU isn't available, falling back to WARP\n" );
         hr = CreateDevice( D3D_DRIVER_TYPE_WARP, d3device ); // fall back to CPU if GPU isn't available
+    }
 
     if ( FAILED( hr ) )
     {
@@ -612,7 +615,7 @@ HRESULT LoadCurrentFileD2D( HWND hwnd, const WCHAR * pwcPath, IStream * pStream,
             if ( WICBitmapTransformRotate0 != wbto )
             {
                 hr = rotator->Initialize( g_BitmapSource.Get(), wbto );
-                //tracer.Trace( "rotated wic bitmap exif orientation %d, wic transform %d, hr %#x\n", orientation, wbto, hr );
+                tracer.Trace( "rotated wic bitmap exif orientation %d, wic transform %d, hr %#x\n", orientation, wbto, hr );
     
                 if ( SUCCEEDED( hr ) )
                 {
@@ -1354,8 +1357,6 @@ LRESULT CALLBACK WindowProc( HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam 
                         randomizedYet = true;
                     }
 
-                    // the 1 == logic is for debugging. Remove later.
-
                     SetTimer( hwnd, TIMER_SLIDESHOW_ID, ( 0 == g_photoDelay ) ? 10 : 1000 * g_photoDelay, NULL );
                 }
 
@@ -1596,6 +1597,7 @@ int WINAPI wWinMain( HINSTANCE hInstance, HINSTANCE, PWSTR pCmdLine, int nCmdSho
     SetProcessDpiAwarenessContext( DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 );
 
     bool enableTracer = false;
+    bool startSlideshow = false;
     awcPhotoPath[0] = 0;
 
     {
@@ -1615,6 +1617,8 @@ int WINAPI wWinMain( HINSTANCE hInstance, HINSTANCE, PWSTR pCmdLine, int nCmdSho
 
                if ( 't' == a1 )
                    enableTracer = true;
+               else if ( 's' == a1 )
+                   startSlideshow = true;
             }
             else
             {
@@ -1689,7 +1693,13 @@ int WINAPI wWinMain( HINSTANCE hInstance, HINSTANCE, PWSTR pCmdLine, int nCmdSho
     wc.hIcon         = LoadIcon( hInstance, MAKEINTRESOURCE( ID_PV_ICON ) );
     wc.hbrBackground = brushBlack;
     wc.lpszClassName = CLASS_NAME;
-    RegisterClassEx( &wc );
+    ATOM classAtom = RegisterClassEx( &wc );
+
+    if ( 0 == classAtom )
+    {
+        tracer.Trace( "can't register windows class, error %d\n", GetLastError() );
+        return 0;
+    }
 
     HWND hwnd = CreateWindowEx( 0, CLASS_NAME, L"photo viewer", WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, NULL, NULL, hInstance, NULL );
     if ( NULL == hwnd )
@@ -1771,6 +1781,9 @@ int WINAPI wWinMain( HINSTANCE hInstance, HINSTANCE, PWSTR pCmdLine, int nCmdSho
     LoadNextImage( hwnd, md_Stay );
 
     ShowWindow( hwnd, placementFound ? wp.showCmd : nCmdShow );
+
+    if ( startSlideshow)
+        SendMessage( hwnd, WM_CHAR, 's', 0 );
 
     SetProcessWorkingSetSize( GetCurrentProcess(), ~0, ~0 );
 
