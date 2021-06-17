@@ -1647,6 +1647,12 @@ private:
                 {
                     EnumerateGPSTags( depth + 1, head.offset, headerBase, littleEndian );
                 }
+                else if ( 41989 == head.id && IsIntType( head.type ) )
+                {
+                    // This is generally in ExifTags, but for Nikon it can sometimes be here in IFD0
+
+                    g_FocalLengthIn35mmFilm = head.offset;
+                }
                 else if ( 50740 == head.id && IsIntType( head.type ) )
                 {
                     // Sony and Ricoh Makernotes (in addition to makernotes stored in Exif IFD)
