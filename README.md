@@ -4,6 +4,9 @@
 PV is a Windows application that displays photos in many formats. It was designed
 for fast triage of both newly captured RAW files and edited JPG files ready for sharing.
 
+PV.EXE is built in github and available as an artifact under the most recent build
+under Actions, in a zip file. Otherwise, build it yourself.
+
 PV uses WIC for opening images and D2D for display. It was tested with files
 including 3fr, arw, bmp, cr2, cr3, dng, flac, gif, heic, hif, ico, jfif/jpeg/jpg,
 nef, orf, png, raf, rw2, tif/tiff.
