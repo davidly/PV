@@ -28,5 +28,11 @@ jobs:
       # Runs a single command using the runners shell
       - name: Run a one-line script
         run: start-process "cmd.exe" "/c .\m.bat"
+        
+      - name: archive the binary
+        uses: actions/upload-artifact@v2
+        with:
+          name: application
+          path: pv.exe
       
 
