@@ -302,12 +302,6 @@ void LoadRegistryParams()
         g_inF11FullScreen = ( !_wcsicmp( awcBuffer, L"Yes" ) );
 } //LoadRegistryParams
 
-void ReleaseDevice()
-{
-    g_target.Reset();
-    g_swapChain.Reset();
-} //ReleaseDevice
-
 void NavigateToStartingPhoto( WCHAR * pwcStartingPhoto )
 {
     if ( 0 == g_pImageArray->Count() )
@@ -447,7 +441,6 @@ HRESULT CreateDeviceSwapChainBitmap( HWND hwnd )
 HRESULT CreateTargetAndD2DBitmap( HWND hwnd )
 {
     high_resolution_clock::time_point tA = high_resolution_clock::now();
-
     HRESULT hr = S_OK;
 
     if ( ! ( g_target && g_swapChain ) )
@@ -966,12 +959,15 @@ void CopyCommand( HWND hwnd )
 
 extern "C" INT_PTR WINAPI HelpDialogProc( HWND hdlg, UINT message, WPARAM wParam, LPARAM lParam )
 {
-    static const WCHAR * helpText = L"usage:\tpv [imagepath]\n"
-                                     "\tpv [folder]\n"
+    static const WCHAR * helpText = L"usage:\n"
+                                     "\tpv photo [-s] [-t]\n"
+                                     "\tpv folder [-s] [-t]\n"
                                      "\n"
                                      "arguments:\n"
-                                     "\t[imagepath]\tpath of image to display\n"
-                                     "\t[folder]\t\tpath of folder with images\n"
+                                     "\tphoto\t\tpath of image to display\n"
+                                     "\tfolder\t\tpath of folder with images\n"
+                                     "\t-s\t\tstart slideshow\n"
+                                     "\t-t\t\tenable debug tracing to %temp%\\tracer.txt\n"
                                      "\n"
                                      "mouse:\n"
                                      "\tleft-click\tdisplay 1:1 pixel for pixel\n"
@@ -979,27 +975,25 @@ extern "C" INT_PTR WINAPI HelpDialogProc( HWND hdlg, UINT message, WPARAM wParam
                                      "\tright-click\tcontext menu\n"
                                      "\n"
                                      "keyboard:\n"
-                                     "\tCtrl+c\tCopy image path and bitmap to the clipboard\n"
-                                     "\ti\tShow or hide image EXIF information\n"
-                                     "\tm\tShow GPS coordinates (if any) in Google Maps\n"
-                                     "\tn\tNext image (also right arrow)\n"
-                                     "\tp\tPrevious image (also left arrow)\n"
-                                     "\tq\tExit the app\n"
-                                     "\ts\tStart or stop slideshow\n"
-                                     "\tF11\tEnter or exit full-screen mode\n"
-                                     "\tEsc\tExit the app\n"
+                                     "\tctrl+c\t\tcopy image path and bitmap to the clipboard\n"
+                                     "\ti\t\tshow or hide image EXIF information\n"
+                                     "\tm\t\tshow GPS coordinates (if any) in Google Maps\n"
+                                     "\tn\t\tnext image (also right arrow)\n"
+                                     "\tp\t\tprevious image (also left arrow)\n"
+                                     "\tq or esc\tquit the app\n"
+                                     "\ts\t\tstart or stop slideshow\n"
+                                     "\tF11\t\tenter or exit full-screen mode\n"
                                      "\n"
                                      "notes:\n"
                                      "\t- All image files below the given folder are enumerated.\n"
                                      "\t- Entering slideshow for 1st time randomizes image order.\n"
-                                     "\t- iPhone .heic photos require a Microsoft Store codec.\n"
+                                     "\t- iPhone .heic photos require a free Microsoft Store codec.\n"
                                      "\t- WIC leaks handles for .heic photos.\n"
                                      "\t- WIC crashes for DNGs created by Lightroom's \"enhance.\"\n"
                                      "\t- Tested with 3fr arw bmp cr2 cr3 dng flac gif heic hif ico\n"
                                      "\t      jfif jpeg jpg nef orf png raf rw2 tif tiff.\n"
                                      "\t- Tested with RAW from Apple Canon Fujifilm Hasselblad Leica \n"
-                                     "\t      Nikon Olympus Panasonic Pentax Ricoh Sigma Sony.\n"
-                                     "\t- Start with -t to enable debug tracing to %temp%\\tracer.txt\n";
+                                     "\t      Nikon Olympus Panasonic Pentax Ricoh Sigma Sony.\n";
 
     switch( message )
     {
@@ -1032,6 +1026,12 @@ extern "C" INT_PTR WINAPI HelpDialogProc( HWND hdlg, UINT message, WPARAM wParam
 
     return 0;
 } //HelpDialogProc
+
+void ReleaseDevice()
+{
+    g_target.Reset();
+    g_swapChain.Reset();
+} //ReleaseDevice
 
 void ResizeSwapChainBitmap( HWND hwnd )
 {
@@ -1420,7 +1420,7 @@ LRESULT CALLBACK WindowProc( HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam 
             CheckMenuRadioItem( GetSubMenu( hMenu, 0 ), ID_PV_RAW_ALWAYS, ID_PV_RAW_NEVER, ID_PV_RAW_ALWAYS + (int) g_ProcessRAW, MF_BYCOMMAND );
             CheckMenuRadioItem( GetSubMenu( hMenu, 0 ), ID_PV_SORT_LASTWRITE, ID_PV_SORT_PATH, ID_PV_SORT_LASTWRITE + (int) g_SortImagesBy, MF_BYCOMMAND );
 
-            TrackPopupMenu ( GetSubMenu( hMenu, 0 ), TPM_RIGHTBUTTON, pt.x, pt.y, 0, hwnd, NULL );
+            TrackPopupMenu( GetSubMenu( hMenu, 0 ), TPM_RIGHTBUTTON, pt.x, pt.y, 0, hwnd, NULL );
             break;
         }
 
@@ -1435,7 +1435,6 @@ LRESULT CALLBACK WindowProc( HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam 
             mouseY = GET_Y_LPARAM( lParam );
 
             SetCapture( hwnd );
-
             SetCursor( LoadCursor( NULL, IDC_HAND ) );
 
             RECT rectCapture;

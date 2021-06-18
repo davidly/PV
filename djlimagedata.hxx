@@ -234,9 +234,10 @@ private:
         for ( WORD i = 0; i < numHeaders; i++ )
         {
             // validate type info, because if it's wrong we're likely parsing the file incorrectly.
-            // Note the Panasonic zs100 & zs200 write 0x100 to the type's second byte, so mask it off.
+            // Note the Panasonic LX100, S1R, zs100, & zs200 write 0x100 to the type's second byte, so mask it off.
+            // Not all Panasonic RAW files do this -- GF1 for example.
 
-            if ( !strcmp( g_acModel, "DMC-ZS100" ) || !strcmp( g_acModel, "DC-ZS200" ) )
+            if ( !strcmp( g_acMake, "Panasonic" ) && ( 0x100 == ( 0xff00 & pHeader[i].type ) ) )
                 pHeader[i].type &= 0xff;
 
             if ( pHeader[i].type > 13 )
@@ -593,11 +594,6 @@ private:
             return;
         }
         else if ( !strcmp( g_acMake, "LEICA CAMERA AG" ) )
-        {
-            IFDOffset += 8;
-            isLeica = TRUE;
-        }
-        else if ( !strcmp( g_acMake, "Leica Camera AG¤LEICA M MONOCHROM (Typ 246)" ) )
         {
             IFDOffset += 8;
             isLeica = TRUE;
@@ -2556,7 +2552,7 @@ public:
                             int * pWidth, int * pHeight, int * pFullWidth, int * pFullHeight )
     {
         UpdateCache( pwcPath );
-   
+    
         // Note that the embedded image has no orientation/rotate value. Use orientation from the outer RAW file
     
         *pOffset = g_Embedded_Image_Offset;
@@ -2566,10 +2562,10 @@ public:
         *pHeight = g_Embedded_Image_Height;
         *pFullWidth = g_ImageWidth;
         *pFullHeight = g_ImageHeight;
-       
-         if ( ( 0 == g_Embedded_Image_Offset ) || ( 0 == g_Embedded_Image_Length ) )
-            return false;   
-       
+    
+        if ( ( 0 == g_Embedded_Image_Offset ) || ( 0 == g_Embedded_Image_Length ) )
+            return false;
+    
         return true;
     } //FindEmbeddedJPG
     
