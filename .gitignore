@@ -1,0 +1,8 @@
+pv.obj
+pv.exe
+pv.pdb
+pv.res
+vc140.pdb
+.vscode/tasks.json
+.vscode/launch.json
+.vscode/c_cpp_properties.json

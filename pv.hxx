@@ -1,5 +1,3 @@
-#pragma once
-
 #define ID_PV_ICON                  100
 #define ID_PV_POPUPMENU             200
 #define ID_PV_POPUPMENU_COPY        201

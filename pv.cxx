@@ -46,10 +46,10 @@ using namespace std::chrono;
 #include <d3d11_1.h>
 #include <dwrite.h>
 
+#include "pv.hxx"
+
 using namespace Microsoft::WRL;
 using namespace D2D1;
-
-#include "pv.hxx"
 
 #pragma comment( lib, "advapi32.lib" )
 #pragma comment( lib, "ole32.lib" )
@@ -663,13 +663,12 @@ bool LoadCurrentFileUsingD2D( HWND hwnd )
     int fullHeight = 0;
 
     high_resolution_clock::time_point tEmbeddedA = high_resolution_clock::now();
-    bool ok = g_pImageData->FindEmbeddedImage( pwcFile, & llEmbeddedOffset, & llEmbeddedLength, & orientationValue, & embeddedWidth, & embeddedHeight, & fullWidth, & fullHeight );
+    bool foundEmbedding = g_pImageData->FindEmbeddedImage( pwcFile, & llEmbeddedOffset, & llEmbeddedLength, & orientationValue, & embeddedWidth, & embeddedHeight, & fullWidth, & fullHeight );
     high_resolution_clock::time_point tEmbeddedB = high_resolution_clock::now();
     timeMetadata += duration_cast<std::chrono::nanoseconds>( tEmbeddedB - tEmbeddedA ).count();
 
     // If the embedded JPG is large enough, use it. For some cameras, it's not. For those use LibRaw to process the RAW image.
 
-    bool embeddingExists = ( ( 0 != llEmbeddedOffset ) && ( 0 != llEmbeddedLength ) ) ;
     bool isRaw = IsInExtensionList( pwcFile, (WCHAR **) RawFileExtensions, _countof( RawFileExtensions ) );
     bool useLibRaw = false;
 
@@ -677,10 +676,10 @@ bool LoadCurrentFileUsingD2D( HWND hwnd )
         useLibRaw = true;
     else if ( pr_Never == g_ProcessRAW )
         useLibRaw = false;
-    else if ( ok )
+    else if ( foundEmbedding )
         useLibRaw = ( fullWidth > ( 3 * embeddedWidth ) ) && isRaw;
 
-    if ( isRaw && !embeddingExists )
+    if ( isRaw && !foundEmbedding )
         useLibRaw = true;
 
     if ( IsFLAC( pwcFile ) )
@@ -690,11 +689,11 @@ bool LoadCurrentFileUsingD2D( HWND hwnd )
     useLibRaw = false;
 #endif // PV_USE_LIBRAW
 
-    //tracer.Trace( "  find embedded image result %d, %lld, %lld, orientation %d useLibRaw %d for %ws\n", ok, llEmbeddedOffset, llEmbeddedLength, orientationValue, useLibRaw, pwcFile );
+    //tracer.Trace( "  find embedded image result %d, %lld, %lld, orientation %d useLibRaw %d for %ws\n", foundEmbedding, llEmbeddedOffset, llEmbeddedLength, orientationValue, useLibRaw, pwcFile );
 
     high_resolution_clock::time_point tLoadA = high_resolution_clock::now();
 
-    if ( ok && !useLibRaw && isRaw )
+    if ( foundEmbedding && !useLibRaw && isRaw )
     {
         CIStream * pStream = new CIStream( pwcFile, llEmbeddedOffset, llEmbeddedLength );
         if ( !pStream->Ok() )
@@ -725,7 +724,7 @@ bool LoadCurrentFileUsingD2D( HWND hwnd )
 
         if ( FAILED( hr ) )
         {
-            tracer.Trace( "  LoadCurrentFileD2D can't load file %ws\n", pwcFile );
+            tracer.Trace( "  LoadCurrentFileD2D failed with error %#x, can't load file %ws\n", hr, pwcFile );
             return false;
         }
 
@@ -738,9 +737,9 @@ bool LoadCurrentFileUsingD2D( HWND hwnd )
     high_resolution_clock::time_point tMetadataA = high_resolution_clock::now();
     g_acImageMetadata[ 0 ] = 0;
     g_awcImageMetadata[ 0 ] = 0;
-    int rc = g_pImageData->GetInterestingMetadata( pwcFile, g_acImageMetadata, _countof( g_acImageMetadata ), availableWidth, availableHeight );
+    bool ok = g_pImageData->GetInterestingMetadata( pwcFile, g_acImageMetadata, _countof( g_acImageMetadata ), availableWidth, availableHeight );
 
-    if ( 0 == rc )
+    if ( ok )
     {
         size_t cConverted = 0;
         mbstowcs_s( &cConverted, g_awcImageMetadata, _countof( g_awcImageMetadata ), g_acImageMetadata, 1 + strlen( g_acImageMetadata ) );
@@ -854,7 +853,7 @@ HBITMAP CreateHBITMAP( IWICBitmapSource & bitmap )
 
     if ( height > 1 )
     {
-        unique_ptr<byte> buffer( new byte[ cbStride ] );
+        unique_ptr<::byte> buffer( new ::byte[ cbStride ] );
 
         for ( size_t y = 0; y < height / 2; y++ )
         {
@@ -1004,7 +1003,9 @@ extern "C" INT_PTR WINAPI HelpDialogProc( HWND hdlg, UINT message, WPARAM wParam
         }
 
         case WM_GETDLGCODE:
+        {
             return DLGC_WANTALLKEYS;
+        }
 
         case WM_COMMAND:
         {
@@ -1127,10 +1128,10 @@ void OnPaint( HWND hwnd, int mouseX, int mouseY, PVZoomLevel zoomLevel )
         }
         else
         {
-            rectangle.right = (float) wOut + xOffset;
-            rectangle.bottom = (float) hOut + yOffset;
             rectangle.left = xOffset;
             rectangle.top = yOffset;
+            rectangle.right = (float) wOut + xOffset;
+            rectangle.bottom = (float) hOut + yOffset;
         }
 
         D2D1_RECT_F rectSource = D2D1::RectF( 0.0f, 0.0f, (float) wImg, (float) hImg );
@@ -1146,7 +1147,7 @@ void OnPaint( HWND hwnd, int mouseX, int mouseY, PVZoomLevel zoomLevel )
         {
             ComPtr<ID2D1SolidColorBrush> brushText;
             hr = g_target->CreateSolidColorBrush( D2D1::ColorF( 0.94f, 0.94f, 0.78f, 1.0f ), brushText.GetAddressOf() );
-            D2D1_RECT_F rectText = { 0., 0., (float) rc.right - 4.0f, (float) rc.bottom - 2.0f };
+            D2D1_RECT_F rectText = { 0.0f, 0.0f, (float) rc.right - 4.0f, (float) rc.bottom - 2.0f };
             g_target->DrawText( g_awcImageMetadata, (UINT32) len, g_dwriteTextFormat.Get(), &rectText, brushText.Get() );
         }
 
@@ -1798,8 +1799,8 @@ int WINAPI wWinMain( HINSTANCE hInstance, HINSTANCE, PWSTR pCmdLine, int nCmdSho
     delete g_pImageData;
     g_pImageData = NULL;
 
-    g_dwriteFactory.Reset();
     g_dwriteTextFormat.Reset();
+    g_dwriteFactory.Reset();
     g_target.Reset();
     g_swapChain.Reset();
 

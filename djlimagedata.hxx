@@ -2408,7 +2408,7 @@ public:
         return ( 0 != *pcDateTime );
     } //FindDateTime
     
-    int GetInterestingMetadata( const WCHAR * pwcPath, char * pc, int buflen, int previewWidth, int previewHeight )
+    bool GetInterestingMetadata( const WCHAR * pwcPath, char * pc, int buflen, int previewWidth, int previewHeight )
     {
         UpdateCache( pwcPath );
     
@@ -2529,7 +2529,7 @@ public:
         if ( ( 0 != *pc ) && ( '\n' == * ( current - 1 ) ) )
             *( current - 1 ) = 0;
     
-        return 0;
+        return ( 0 != strlen( pc ) );
     } //GetInterestingMetadata
     
     bool GetCameraInfo( const WCHAR * pwcPath, char * pcMake, int makeLen, char * pcModel, int modelLen )
