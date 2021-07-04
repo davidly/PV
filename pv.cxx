@@ -1172,6 +1172,37 @@ void SortImages()
         g_pImageArray->SortOnPath();
 } //SortImages
 
+// Each monitor on which the window resides results in a call (not all monitors).
+// Use the last one called (which is fine).
+
+BOOL CALLBACK EnumerateMonitors( HMONITOR hMon, HDC hdc, LPRECT rMon, LPARAM lParam )
+{
+    tracer.Trace( "  enumerate, monitor %p, %d, %d, %d, %d\n", hMon, rMon->left, rMon->top, rMon->right, rMon->bottom );
+
+    RECT * pRect = (RECT *) lParam;
+    MONITORINFO mi;
+    mi.cbSize = sizeof mi;
+    if ( GetMonitorInfo( hMon, &mi ) )
+        *pRect = mi.rcMonitor;
+
+    tracer.Trace( "  updated rc %d %d %d %d\n", pRect->left, pRect->top, pRect->right, pRect->bottom );
+    return TRUE;
+} //EnumerateMonitors
+
+void GetCurrentDesktopRect( HWND hwnd, RECT * pRectDesktop )
+{
+    RECT rcWin;
+    GetClientRect( hwnd, &rcWin );
+    ClientToScreen( hwnd, (POINT *) ( &rcWin.left ) );
+    ClientToScreen( hwnd, (POINT *) ( &rcWin.right ) );
+    tracer.Trace( "rectangle of the window passed to EnumDisplayMonitors %d %d %d %d\n", rcWin.left, rcWin.top, rcWin.right, rcWin.bottom );
+
+    // Safe initialization in case enumeration fails
+    GetWindowRect( GetDesktopWindow(), pRectDesktop );
+
+    EnumDisplayMonitors( NULL, &rcWin, EnumerateMonitors, (LPARAM) pRectDesktop );
+} //GetCurrentDesktopRect
+
 LRESULT CALLBACK WindowProc( HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam )
 {
     const int TIMER_SLIDESHOW_ID = 1;
@@ -1499,10 +1530,6 @@ LRESULT CALLBACK WindowProc( HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam 
             {
                 //tracer.Trace( "f11 full screen flip\n" );
 
-                RECT rectDesk;
-                GetWindowRect( GetDesktopWindow(), &rectDesk );
-                //tracer.Trace( "rect desktop: %d %d %d %d\n", rectDesk.left, rectDesk.top, rectDesk.right, rectDesk.bottom );
-
                 if ( g_inF11FullScreen )
                 {
                     DWORD style = WS_OVERLAPPEDWINDOW | WS_VISIBLE;
@@ -1517,21 +1544,14 @@ LRESULT CALLBACK WindowProc( HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam 
                     savedF11WinPlacement.length = sizeof WINDOWPLACEMENT;
                     GetWindowPlacement( hwnd, &savedF11WinPlacement );
 
-                    // Only consider multi-mon with same resolution and orientation on each display.
+                    RECT rectDesk;
+                    GetCurrentDesktopRect( hwnd, &rectDesk );
+                    tracer.Trace( "rect desktop: %d %d %d %d\n", rectDesk.left, rectDesk.top, rectDesk.right, rectDesk.bottom );
 
-                    int left = 0;
-                    int top = 0;
-                    int dx = rectDesk.right;
-                    int dy = rectDesk.bottom;
-
-                    if ( savedF11WinPlacement.rcNormalPosition.left < 0 )
-                        left = - rectDesk.right;
-                    if ( savedF11WinPlacement.rcNormalPosition.top < 0 )
-                        top -= rectDesk.bottom;
-                    if ( savedF11WinPlacement.rcNormalPosition.left > rectDesk.right )
-                        left += rectDesk.right;
-                    if ( savedF11WinPlacement.rcNormalPosition.top > rectDesk.bottom )
-                        top += rectDesk.bottom;
+                    int left = rectDesk.left;
+                    int top = rectDesk.top;
+                    int dx = rectDesk.right - left;
+                    int dy = rectDesk.bottom - top;
 
                     firstEraseBackground = true;
 
