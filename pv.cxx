@@ -35,6 +35,7 @@ using namespace std::chrono;
 #include <djlistream.hxx>
 #include <djl_strm.hxx>
 #include <djlimagedata.hxx>
+#include <djl_rotate.hxx>
 
 #ifdef PV_USE_LIBRAW
 #include <djl_lr.hxx>
@@ -650,6 +651,8 @@ bool LoadCurrentFileUsingD2D( HWND hwnd )
 
     high_resolution_clock::time_point tBMA = high_resolution_clock::now();
 
+    g_pImageData->PurgeCache();
+
     // First try to find an embedded JPG/PNG rather than having WIC do so. This is because WIC's codecs are buggy and
     // resource leaking. This won't work for iPhone .heic files and primitives like .jpg, .png, etc. That's OK.
     // Always call this even for files like JPG in order to get the orientation and cache other metadata
@@ -976,10 +979,12 @@ extern "C" INT_PTR WINAPI HelpDialogProc( HWND hdlg, UINT message, WPARAM wParam
                                      "keyboard:\n"
                                      "\tctrl+c\t\tcopy image path and bitmap to the clipboard\n"
                                      "\ti\t\tshow or hide image EXIF information\n"
+                                     "\tl\t\trotate image left\n"
                                      "\tm\t\tshow GPS coordinates (if any) in Google Maps\n"
                                      "\tn\t\tnext image (also right arrow)\n"
                                      "\tp\t\tprevious image (also left arrow)\n"
                                      "\tq or esc\tquit the app\n"
+                                     "\tr\t\trotate image right\n"
                                      "\ts\t\tstart or stop slideshow\n"
                                      "\tF11\t\tenter or exit full-screen mode\n"
                                      "\n"
@@ -991,8 +996,10 @@ extern "C" INT_PTR WINAPI HelpDialogProc( HWND hdlg, UINT message, WPARAM wParam
                                      "\t- WIC crashes for DNGs created by Lightroom's \"enhance.\"\n"
                                      "\t- Tested with 3fr arw bmp cr2 cr3 dng flac gif heic hif ico\n"
                                      "\t      jfif jpeg jpg nef orf png raf rw2 tif tiff.\n"
-                                     "\t- Tested with RAW from Apple Canon Fujifilm Hasselblad Leica \n"
-                                     "\t      Nikon Olympus Panasonic Pentax Ricoh Sigma Sony.\n";
+                                     "\t- Tested with RAW from Apple Canon Fujifilm Hasselblad Leica\n"
+                                     "\t      Nikon Olympus Panasonic Pentax Ricoh Sigma Sony.\n"
+                                     "\t- Rotate tries to update Exif Orientation, but may re-encode the file\n";
+
 
     switch( message )
     {
@@ -1285,6 +1292,10 @@ LRESULT CALLBACK WindowProc( HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam 
                     InvalidateRect( hwnd, NULL, TRUE );
                 }
             }
+            else if ( ID_PV_ROTATE_LEFT == wParam )
+                SendMessage( hwnd, WM_CHAR, 'l', 0 );
+            else if ( ID_PV_ROTATE_RIGHT == wParam )
+                SendMessage( hwnd, WM_CHAR, 'r', 0 );
 
             break;
         }
@@ -1376,6 +1387,24 @@ LRESULT CALLBACK WindowProc( HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam 
             {
                 g_showMetadata = !g_showMetadata;
                 InvalidateRect( hwnd, NULL, TRUE );
+            }
+            else if ( 'l' == wParam || 'r' == wParam )
+            {
+                if ( 0 != g_pImageArray->Count() )
+                {
+                    // the file is being held open and not shared for write by WIC -- close it.
+    
+                    g_BitmapSource.Reset();
+                    g_D2DBitmap.Reset();
+
+                    CImageRotation imageRotation;
+                    bool ok = imageRotation.Rotate90ViaExifOrBits( g_IWICFactory.Get(), g_pImageArray->Get( g_currentBitmapIndex ), false, 'r' == wParam, true );
+
+                    // regardless of whether the rotate succeeded, reload the file since it was closed above
+    
+                    LoadCurrentFileUsingD2D( hwnd );
+                    InvalidateRect( hwnd, NULL, TRUE );
+                }
             }
             else if ( 's' == wParam )
             {

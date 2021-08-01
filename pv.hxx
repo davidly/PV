@@ -27,5 +27,8 @@
 #define ID_PV_SORT_CREATION         501
 #define ID_PV_SORT_PATH             502
 
+#define ID_PV_ROTATE_RIGHT          600
+#define ID_PV_ROTATE_LEFT           601
+
 
 

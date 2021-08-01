@@ -139,6 +139,14 @@ private:
     int g_Embedded_Image_Width = 0;
     int g_Embedded_Image_Height = 0;
     int g_Orientation_Value = -1;
+    int g_Orientation_Value2 = -1;
+
+    // Offsets for writes into the file
+    __int64 g_Orientation_Offset = 0;
+    __int64 g_Orientation_Offset2 = 0;
+    __int64 g_Orientation_Type = 0;
+    __int64 g_Orientation_Type2 = 0;
+    bool g_Orientation_LittleEndian = false;
     
     char g_acDateTimeOriginal[ 100 ];
     char g_acDateTime[ 100 ];
@@ -1593,7 +1601,19 @@ private:
                 }
                 else if ( 274 == head.id && IsIntType( head.type ) )
                 {
-                    g_Orientation_Value = head.offset;
+                    if ( -1 == g_Orientation_Value )
+                    {
+                        g_Orientation_Value = head.offset;
+                        g_Orientation_Offset = headerBase + IFDOffset - 4;
+                        g_Orientation_Type = head.type;
+                        g_Orientation_LittleEndian = littleEndian;
+                    }
+                    else
+                    {
+                        g_Orientation_Value2 = head.offset;
+                        g_Orientation_Offset2 = headerBase + IFDOffset - 4;
+                        g_Orientation_Type2 = head.type;
+                    }
                 }
                 else if ( 279 == head.id && IsIntType( head.type ) )
                 {
@@ -1663,10 +1683,13 @@ private:
         }
     } //EnumerateIFD0
     
-    BOOL ParseOldJpg( bool embedded = false )
+    int ParseOldJpg( bool embedded = false )
     {
+        int exifOffset = 0;
+
         const BYTE MARKER_SOI   = 0xd8;          // start of image
         const BYTE MARKER_APP0  = 0xe0;          // JFIF application segment
+        const BYTE MARKER_APP1  = 0xe1;          // Exif or adobe segment
         const BYTE MARKER_DQT   = 0xdb;          // Quantization table
         const BYTE MARKER_SOF0  = 0xc0;          // start of frame baseline
         const BYTE MARKER_SOF2  = 0xc2;          // start of frame progressive
@@ -1718,10 +1741,10 @@ private:
             record.FixEndian( FALSE );
 
             if ( 0xff != record.marker )
-                return FALSE;
+                return exifOffset;
     
             if ( MARKER_EOI == record.segment )
-                return TRUE;
+                return exifOffset;
     
             if ( 0xff == record.segment )
             {
@@ -1762,6 +1785,18 @@ private:
             {
                 break;
             }
+            else if ( MARKER_APP1 == record.segment )
+            {
+                char app1Header[ 5 ];
+                GetBytes( offset + 4, app1Header, 4 );
+                app1Header[4] = 0;
+    
+                if ( !stricmp( app1Header, "exif" ) )
+                {
+                    // just return the exifoffset so it can be parsed later
+                    exifOffset = offset + 8;
+                }
+            }
     
             if ( 0 == record.length )
                 break;
@@ -1772,7 +1807,7 @@ private:
             offset += ( record.length + 2 );
         } while (TRUE);
     
-        return TRUE;
+        return exifOffset;
     } //ParseOldJpg
     
     // https://en.wikipedia.org/wiki/Portable_Network_Graphics
@@ -1904,7 +1939,6 @@ private:
         DWORD header;
         g_pStream->Read( &header, sizeof header );
     
-        bool tryParsingOldJpg = false;
         bool parsingEmbeddedImage = false;
     
         if ( 0x43614c66 == header )
@@ -1956,77 +1990,35 @@ private:
         }
         else if ( 0xd8ff == ( header & 0xffff ) ) 
         {
-            tryParsingOldJpg = TRUE;
-    
             // special handling for JPG files
     
-            if ( 0xe0ff0000 == ( header & 0xffff0000 ) )
+            int exifMaybe = ParseOldJpg();
+    
+            if ( 0 == exifMaybe )
+                return;
+    
+            int saveMaybe = exifMaybe;
+            exifMaybe += 5;  // Get past "Exif."
+            DWORD maybe = GetDWORD( exifMaybe, littleEndian );
+    
+            if ( ( 0x002a4949 != maybe ) && ( 0x2a004d4d != maybe ) )
             {
-                // Check if the JFIF has exif data
-    
-                DWORD exifSig = GetDWORD( 0x1e, littleEndian );
-    
-                if ( 0x2a004d4d == exifSig || 0x002a4949 == exifSig )
-                {
-                    exifHeaderOffset = 0x1e;
-                }
-                else
-                {
-                    // JFIF JPG file, that won't have focal length and is in a different format than photography-generated JPG files
-                    ParseOldJpg();
-                    return;
-                }
+                exifMaybe = 12; // It's just very common
+                maybe = GetDWORD( exifMaybe, littleEndian );
             }
     
-            header = GetDWORD( exifHeaderOffset, TRUE );
-    
-            if ( ( 0x002a4949 == header ) || ( 0x2a004d4d == header ) )
+            if ( ( 0x002a4949 != maybe ) && ( 0x2a004d4d != maybe ) )
             {
+                exifMaybe = saveMaybe + 2; // JFIF files are like this sometimes
+                maybe = GetDWORD( exifMaybe, littleEndian );
+            }
+
+            if ( ( 0x002a4949 == maybe ) || ( 0x2a004d4d == maybe ) )
+            {
+                exifHeaderOffset = exifMaybe;
                 headerBase = exifHeaderOffset;
                 startingOffset = exifHeaderOffset + 4;
-            }
-            else
-            {
-                // last-ditch hunt for header
-    
-                BOOL found = FALSE;
-    
-                // Many JPG files just happen to have the header at offset 28. Try it.
-    
-                DWORD app0Len = GetWORD( 4, FALSE );
-                DWORD maybe = GetDWORD( 28, littleEndian );
-    
-                if ( ( 0x002a4949 == maybe ) || ( 0x2a004d4d == maybe ) )
-                {
-                    exifHeaderOffset = 28;
-                    headerBase = exifHeaderOffset;
-                    startingOffset = exifHeaderOffset + 4;
-                    header = maybe;
-                    found = TRUE;
-                }
-                else
-                {
-                    for ( int i = 1; i < 0x100; i++ )
-                    {
-                        DWORD potential = GetDWORD( i, littleEndian );
-        
-                        if ( ( 0x002a4949 == potential ) || ( 0x2a004d4d == potential ) )
-                        {
-                            exifHeaderOffset = i;
-                            headerBase = exifHeaderOffset;
-                            startingOffset = exifHeaderOffset + 4;
-                            header = potential;
-                            found = TRUE;
-                            break;
-                        }
-                    }
-                }
-    
-                if ( !found )
-                {
-                    ParseOldJpg();
-                    return;
-                }
+                header = maybe;
             }
         }
         else if ( 0x494a5546 == header )
@@ -2082,11 +2074,6 @@ private:
         DWORD IFDOffset = GetDWORD( startingOffset, littleEndian );
     
         EnumerateIFD0( 0, IFDOffset, headerBase, littleEndian, pwcExt );
-    
-        // Sometimes image width and height are only in old jpg data, even for files with Exif data
-    
-        if ( tryParsingOldJpg )
-            ParseOldJpg();
     
         if ( 0 != g_Canon_CR3_Exif_Exif_IFD )
         {
@@ -2190,7 +2177,14 @@ private:
         g_Embedded_Image_Length = 0;
         g_Embedded_Image_Width = 0;
         g_Embedded_Image_Height = 0;
+
         g_Orientation_Value = -1;
+        g_Orientation_Offset = 0;
+        g_Orientation_Type = 0;
+        g_Orientation_Value2 = -1;
+        g_Orientation_Offset2 = 0;
+        g_Orientation_Type2 = 0;
+        g_Orientation_LittleEndian = false;
     
         g_acDateTimeOriginal[ 0 ] = 0;
         g_acDateTime[ 0 ] = 0;
@@ -2581,6 +2575,146 @@ public:
     
         return true;
     } //GetGPSLocation
+
+    bool GetOrientation( const WCHAR * pwcPath, int * orientation )
+    {
+        *orientation = 1; // default
+
+        UpdateCache( pwcPath );
+
+        if ( -1 == g_Orientation_Value )
+        {
+            tracer.Trace( "orientation value is -1, so assuming it isn't set in the file, so can't rotate because there is nothing to update\n" );
+            return false;
+        }
+
+        return true;
+    } //GetOrientation
+
+    bool RotateImage( const WCHAR * pwcPath, bool rotateRight )
+    {
+        UpdateCache( pwcPath );
+
+        if ( -1 == g_Orientation_Value )
+        {
+            tracer.Trace( "orientation value is -1, so assuming it isn't set in the file, so can't rotate because there is nothing to update\n" );
+            return false;
+        }
+
+        if ( g_Orientation_Value > 8 || g_Orientation_Value < 1 )
+        {
+            tracer.Trace( "overriding illegal orientation value %d with a default of 1 == horizontal (normal)\n", g_Orientation_Value );
+            g_Orientation_Value = 1;
+        }
+
+        if ( 1 != g_Orientation_Value && 6 != g_Orientation_Value && 3 != g_Orientation_Value && 8 != g_Orientation_Value )
+        {
+            tracer.Trace( "orientation vaue isn't 1, 6, 3, or 8, so rotate can't be performed: %d\n", g_Orientation_Value );
+            return false;
+        }
+
+        if ( 0 == g_Orientation_Offset )
+        {
+            tracer.Trace( "orientation offset is 0, which can't be correct\n" );
+            return false;
+        }
+
+        if ( 3 != g_Orientation_Type )
+        {
+            tracer.Trace( "orientation data type isn't 3 (short) as expected: %d\n", g_Orientation_Type );
+            return false;
+        }
+
+        HANDLE hFile = CreateFile( pwcPath, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL );
+
+        if ( INVALID_HANDLE_VALUE == hFile )
+        {
+            tracer.Trace( "can't open file for write to update orientation, error %d\n", GetLastError() );
+            return false;
+        }
+
+        // 1 --> 6 --> 3 --> 8 --> 1 ...
+        WORD o = g_Orientation_Value;
+
+        if ( rotateRight )
+        {
+            if ( 1 == o )
+                o = 6;
+            else if ( 8 == o )
+                o = 1;
+            else if ( 3 == o )
+                o = 8;
+            else
+                o = 3;
+        }
+        else
+        {
+            if ( 1 == o )
+                o = 8;
+            else if ( 8 == o )
+                o = 3;
+            else if ( 3 == o )
+                o = 6;
+            else
+                o = 1;
+        }
+
+        tracer.Trace( "updating orientation value %d with %d at file offset %lld\n", g_Orientation_Value, o, g_Orientation_Offset );
+
+        LARGE_INTEGER li;
+        li.QuadPart = g_Orientation_Offset;
+        BOOL ok = SetFilePointerEx( hFile, li, NULL, FILE_BEGIN );
+
+        if ( ok )
+        {
+            DWORD written = 0;
+            WORD oToWrite = g_Orientation_LittleEndian ? o : _byteswap_ushort( o );
+            ok = WriteFile( hFile, &oToWrite, sizeof oToWrite, &written, NULL );
+
+            if ( ok )
+                g_Orientation_Value = o;
+            else
+                tracer.Trace( "can't write orientation to file, error %d\n", GetLastError() );
+        }
+        else
+        {
+            tracer.Trace( "can't set file pointer to update orientation, error %d\n", GetLastError() );
+        }
+
+        // Sometimes (Panasonic RAWs written by Lightroom) the orientation is stored twice,
+        // in IFD0 and IFD1 (the second record of IFD0). Update both.
+        // Different apps look at different values, so the behavior is otherwise unpredictable.
+
+        if ( -1 != g_Orientation_Value2 && 0 != g_Orientation_Offset2 )
+        {
+            li.QuadPart = g_Orientation_Offset2;
+            ok = SetFilePointerEx( hFile, li, NULL, FILE_BEGIN );
+
+            if ( ok )
+            {
+                DWORD written = 0;
+                WORD oToWrite = g_Orientation_LittleEndian ? o : _byteswap_ushort( o );
+                ok = WriteFile( hFile, &oToWrite, sizeof oToWrite, &written, NULL );
+
+                if ( !ok )
+                    tracer.Trace( "can't write orientation2 to file, error %d\n", GetLastError() );
+            }
+            else
+            {
+                tracer.Trace( "can't set file pointer to update orientation2, error %d\n", GetLastError() );
+            }
+        }
+
+        CloseHandle( hFile );
+
+        return ok;
+    } //RotateImage
+
+    void PurgeCache()
+    {
+        InitializeGlobals();
+        g_awcPath[ 0 ] = 0;
+    }
     
     CImageData()
     {

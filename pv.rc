@@ -41,10 +41,13 @@ BEGIN
         MENUITEM SEPARATOR
         POPUP "Sort Images By"
         BEGIN
-            MENUITEM "Last Write Time" ID_PV_SORT_LASTWRITE
-            MENUITEM "Creation Time"   ID_PV_SORT_CREATION
-            MENUITEM "Path"            ID_PV_SORT_PATH
+            MENUITEM "Last Write Time", ID_PV_SORT_LASTWRITE
+            MENUITEM "Creation Time",   ID_PV_SORT_CREATION
+            MENUITEM "Path",            ID_PV_SORT_PATH
         END
+        MENUITEM SEPARATOR
+        MENUITEM "Rotate &Right\tr", ID_PV_ROTATE_RIGHT
+        MENUITEM "Rotate &Left\tl",  ID_PV_ROTATE_LEFT
     END
 END
 
