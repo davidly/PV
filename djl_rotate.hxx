@@ -98,11 +98,6 @@ private:
     
         if ( SUCCEEDED( hr ) )
         {
-            //hr = pIWICFactory->CreateEncoder( GetContainerFormat( pwcPath ), NULL, encoder.GetAddressOf() );
-    
-            //if ( memcmp( &containerFormat, & GetContainerFormat( pwcPath ), sizeof containerFormat ) )
-            //    tracer.Trace( "containerformat isn't as expected given the file's extension\n" );
-    
             hr = pIWICFactory->CreateEncoder( containerFormat, NULL, encoder.GetAddressOf() );
             if ( FAILED( hr ) ) tracer.Trace( "hr from create encoder: %#x\n", hr );
         }
@@ -334,7 +329,7 @@ public:
             if ( ok )
             {
                 HRESULT hr = RotateImage90Degrees( pIWICFactory, photoPath, outputPath, rotateRight );
-         
+
                 if ( SUCCEEDED( hr ) )
                 {
                     ok = true;
@@ -378,6 +373,8 @@ public:
                 else
                 {
                     tracer.Trace( "rotate failed with error %#x\n", hr );
+
+                    ok = false;
         
                     // clean up temporary file if it got created.
         
