@@ -23,11 +23,11 @@ class CImageRotation
 {
 private:
 
-    WCHAR const * ExpectedOrientationName( GUID * pContainerFormat )
+    WCHAR const * ExpectedOrientationName( GUID & containerFormat )
     {
         // JPG and JFIF store Orientation under /app1/
     
-        if ( ! memcmp( pContainerFormat, & GUID_ContainerFormatJpeg, sizeof GUID ) )
+        if ( ! memcmp( & containerFormat, & GUID_ContainerFormatJpeg, sizeof GUID ) )
             return L"/app1/ifd/{ushort=274}";
     
         // TIFF and all raw formats store Orientation here.
@@ -68,6 +68,43 @@ private:
     
         return true;
     } //CreateSafetyPath
+
+    void TraceContainerFormat( GUID & cf )
+    {
+        tracer.Trace( "  container format of source: " );
+
+        if ( GUID_ContainerFormatBmp == cf )
+            tracer.TraceQuiet( "Bmp: " );
+        else if ( GUID_ContainerFormatPng == cf )
+            tracer.TraceQuiet( "Png: " );
+        else if ( GUID_ContainerFormatIco == cf )
+            tracer.TraceQuiet( "Ico: " );
+        else if ( GUID_ContainerFormatJpeg == cf )
+            tracer.TraceQuiet( "Jpeg: " );
+        else if ( GUID_ContainerFormatTiff == cf )
+            tracer.TraceQuiet( "Tiff: " );
+        else if ( GUID_ContainerFormatGif == cf )
+            tracer.TraceQuiet( "Gif: " );
+        else if ( GUID_ContainerFormatWmp == cf )
+            tracer.TraceQuiet( "Wmp: " );
+        else if ( GUID_ContainerFormatDds == cf )
+            tracer.TraceQuiet( "Dds: " );
+        else if ( GUID_ContainerFormatAdng == cf )
+            tracer.TraceQuiet( "Adng: " );
+        else if ( GUID_ContainerFormatHeif == cf )
+            tracer.TraceQuiet( "Heif: " );
+        else if ( GUID_ContainerFormatWebp == cf )
+            tracer.TraceQuiet( "Webp: " );
+        else if ( GUID_ContainerFormatRaw == cf )
+            tracer.TraceQuiet( "Raw: " );
+        else
+            tracer.TraceQuiet( "(unknown): " );
+
+        OLECHAR * olestr = NULL;
+        StringFromCLSID( cf, & olestr );
+        tracer.TraceQuiet( "%ws\n", olestr );
+        CoTaskMemFree( olestr );
+    } //TraceContainerFormat
     
     HRESULT RotateImage90Degrees( IWICImagingFactory * pIWICFactory, WCHAR const * pwcPath, WCHAR const * pwcOutputPath, bool right )
     {
@@ -94,12 +131,17 @@ private:
             if ( FAILED( hr ) ) tracer.Trace( "hr from GetContainerFormat %#x\n", hr );
         }
     
-        WCHAR const * orientationName = ExpectedOrientationName( & containerFormat );
+        WCHAR const * orientationName = ExpectedOrientationName( containerFormat );
     
         if ( SUCCEEDED( hr ) )
         {
             hr = pIWICFactory->CreateEncoder( containerFormat, NULL, encoder.GetAddressOf() );
-            if ( FAILED( hr ) ) tracer.Trace( "hr from create encoder: %#x\n", hr );
+            if ( FAILED( hr ) )
+            {
+                tracer.Trace( "hr from create encoder: %#x\n", hr );
+
+                TraceContainerFormat( containerFormat );
+            }
         }
     
         if ( SUCCEEDED( hr ) )
@@ -148,88 +190,101 @@ private:
                 {
                     hr = frameDecode->QueryInterface( IID_IWICMetadataBlockReader, (void **) blockReader.GetAddressOf() );
                     if ( FAILED( hr ) ) tracer.Trace( "qi of blockReader: %#x\n", hr );
-    
-                    hr = frameEncode->QueryInterface( IID_IWICMetadataBlockWriter, (void **) blockWriter.GetAddressOf() );
-                    if ( FAILED( hr ) ) tracer.Trace( "qi of blockWriter: %#x\n", hr );
+
+                    if ( SUCCEEDED( hr ) )
+                    {
+                        hr = frameEncode->QueryInterface( IID_IWICMetadataBlockWriter, (void **) blockWriter.GetAddressOf() );
+                        if ( FAILED( hr ) ) tracer.Trace( "qi of blockWriter: %#x\n", hr );
+                    }
     
                     if ( SUCCEEDED( hr ) )
                     {
                         hr = blockWriter->InitializeFromBlockReader( blockReader.Get() );
                         if ( FAILED( hr ) ) tracer.Trace( "hr from InitializeFromBlockReader: %#x\n", hr );
                     }
-                }
-       
-                ComPtr<IWICMetadataQueryWriter> frameQWriter;
-    
-                if ( SUCCEEDED( hr ) )
-                {
-                    hr = frameEncode->GetMetadataQueryWriter( frameQWriter.GetAddressOf() );
-                    if ( FAILED( hr ) ) tracer.Trace( "hr from GetMetadataQueryWriter: %#x\n", hr );
-                }
-    
-                // Attempt to set the Exif Orientation flag. Some file formats don't support this.
-       
-                if ( SUCCEEDED( hr ) )
-                {
-                    ComPtr<IWICMetadataQueryReader> queryReader;
-                    hr = frameDecode->GetMetadataQueryReader( queryReader.GetAddressOf() );
-                    if ( FAILED( hr ) ) tracer.Trace( "hr from get metadata query reader: %#x\n", hr );
-    
-                    PROPVARIANT value;
-                    PropVariantInit( &value );
-                    WORD o = 1;
-    
-                    if ( SUCCEEDED( hr ) )
+                    else if ( E_NOINTERFACE == hr )
                     {
-                        hr = queryReader->GetMetadataByName( orientationName, &value );
-    
-                        if ( SUCCEEDED( hr ) )
-                            o = (WORD) value.uiVal;
-                        else if ( WINCODEC_ERR_PROPERTYNOTFOUND == hr ) // go with the default
-                            hr = S_OK;
-                        else
-                            tracer.Trace( "getmetadatabyname %ws hr %#x, vt %d, value %d\n", orientationName, hr, value.vt, value.uiVal );
+                        // bmp files do this -- they have no metadata block and so don't support the interface
+
+                        useFlipRotator = true;
+                        hr = S_OK;
                     }
-    
+                }
+
+                if ( !useFlipRotator )
+                {
+                    ComPtr<IWICMetadataQueryWriter> frameQWriter;
+        
                     if ( SUCCEEDED( hr ) )
                     {
-                        if ( right )
+                        hr = frameEncode->GetMetadataQueryWriter( frameQWriter.GetAddressOf() );
+                        if ( FAILED( hr ) ) tracer.Trace( "hr from GetMetadataQueryWriter: %#x\n", hr );
+                    }
+        
+                    // Attempt to set the Exif Orientation flag. Some file formats don't support this.
+           
+                    if ( SUCCEEDED( hr ) )
+                    {
+                        ComPtr<IWICMetadataQueryReader> queryReader;
+                        hr = frameDecode->GetMetadataQueryReader( queryReader.GetAddressOf() );
+                        if ( FAILED( hr ) ) tracer.Trace( "hr from get metadata query reader: %#x\n", hr );
+        
+                        PROPVARIANT value;
+                        PropVariantInit( &value );
+                        WORD o = 1;
+        
+                        if ( SUCCEEDED( hr ) )
                         {
-                            if ( 1 == o )
-                                o = 6;
-                            else if ( 8 == o )
-                                o = 1;
-                            else if ( 3 == o )
-                                o = 8;
+                            hr = queryReader->GetMetadataByName( orientationName, &value );
+        
+                            if ( SUCCEEDED( hr ) )
+                                o = (WORD) value.uiVal;
+                            else if ( WINCODEC_ERR_PROPERTYNOTFOUND == hr ) // go with the default
+                                hr = S_OK;
                             else
-                                o = 3;
+                                tracer.Trace( "getmetadatabyname %ws hr %#x, vt %d, value %d\n", orientationName, hr, value.vt, value.uiVal );
                         }
-                        else
+        
+                        if ( SUCCEEDED( hr ) )
                         {
-                            if ( 1 == o )
-                                o = 8;
-                            else if ( 8 == o )
-                                o = 3;
-                            else if ( 3 == o )
-                                o = 6;
+                            if ( right )
+                            {
+                                if ( 1 == o )
+                                    o = 6;
+                                else if ( 8 == o )
+                                    o = 1;
+                                else if ( 3 == o )
+                                    o = 8;
+                                else
+                                    o = 3;
+                            }
                             else
-                                o = 1;
+                            {
+                                if ( 1 == o )
+                                    o = 8;
+                                else if ( 8 == o )
+                                    o = 3;
+                                else if ( 3 == o )
+                                    o = 6;
+                                else
+                                    o = 1;
+                            }
+            
+                            value.vt = VT_UI2;
+                            value.uiVal = o;
+            
+                            hr = frameQWriter->SetMetadataByName( orientationName, &value );
+            
+                            if ( WINCODEC_ERR_UNEXPECTEDMETADATATYPE == hr )
+                            {
+                                // This file type doesn't support an orientation flag (PNG, GIF, ICO, etc.), so need to rotate pixels
+        
+                                useFlipRotator = true;
+                                hr = S_OK;
+                            }
+                            else if ( FAILED( hr ) )
+                                tracer.Trace( "hr from SetMetadataByName: %#x\n", hr );
                         }
-        
-                        value.vt = VT_UI2;
-                        value.uiVal = o;
-        
-                        hr = frameQWriter->SetMetadataByName( orientationName, &value );
-        
-                        if ( WINCODEC_ERR_UNEXPECTEDMETADATATYPE == hr )
-                        {
-                            // This file type doesn't support an orientation flag (PNG, GIF, ICO, etc.), so need to rotate pixels
-    
-                            useFlipRotator = true;
-                            hr = S_OK;
-                        }
-                        else if ( FAILED( hr ) )
-                            tracer.Trace( "hr from SetMetadataByName: %#x\n", hr );
                     }
                 }
     
