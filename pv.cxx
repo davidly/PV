@@ -895,15 +895,19 @@ void PutPathInClipboard( const WCHAR * pwcPath )
     size_t bytes = sizeof( DROPFILES ) + ( ( len + 2 ) * sizeof( WCHAR ) );
 
     DROPFILES * df = (DROPFILES *) GlobalAlloc( GMEM_FIXED, bytes );
-    ZeroMemory( df, bytes );
-    df->pFiles = sizeof( DROPFILES );
-    df->fWide = TRUE;
-    WCHAR * ptr = (LPWSTR) ( df + 1 );
-    wcscpy_s( ptr, len + 1, pwcPath );
 
-    // Windows takes ownership of the buffer
-
-    SetClipboardData( CF_HDROP, df );
+    if ( 0 != df )
+    {
+        ZeroMemory( df, bytes );
+        df->pFiles = sizeof( DROPFILES );
+        df->fWide = TRUE;
+        WCHAR * ptr = (LPWSTR) ( df + 1 );
+        wcscpy_s( ptr, len + 1, pwcPath );
+    
+        // Windows takes ownership of the buffer
+    
+        SetClipboardData( CF_HDROP, df );
+    }
 } //PutPathInClipboard
 
 void PutBitmapInClipboard()
@@ -1397,8 +1401,7 @@ LRESULT CALLBACK WindowProc( HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam 
                     g_BitmapSource.Reset();
                     g_D2DBitmap.Reset();
 
-                    CImageRotation imageRotation;
-                    bool ok = imageRotation.Rotate90ViaExifOrBits( g_IWICFactory.Get(), g_pImageArray->Get( g_currentBitmapIndex ), false, 'r' == wParam, true );
+                    bool ok = CImageRotation::Rotate90ViaExifOrBits( g_IWICFactory.Get(), g_pImageArray->Get( g_currentBitmapIndex ), false, 'r' == wParam, true );
 
                     // regardless of whether the rotate succeeded, reload the file since it was closed above
     

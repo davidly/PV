@@ -40,7 +40,7 @@ class CDJLTrace
                     unique_ptr<WCHAR> tempPath( new WCHAR[ MAX_PATH + 1 ] );
                     size_t available = MAX_PATH - len;
 
-                    DWORD result = GetTempPath( available , tempPath.get() );
+                    size_t result = GetTempPath( (DWORD) available , tempPath.get() );
                     if ( result > available || 0 == result )
                         return false;
 

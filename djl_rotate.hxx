@@ -23,19 +23,19 @@ class CImageRotation
 {
 private:
 
-    WCHAR const * ExpectedOrientationName( GUID & containerFormat )
+    static WCHAR const * ExpectedOrientationName( GUID & containerFormat )
     {
         // JPG and JFIF store Orientation under /app1/
     
         if ( ! memcmp( & containerFormat, & GUID_ContainerFormatJpeg, sizeof GUID ) )
             return L"/app1/ifd/{ushort=274}";
     
-        // TIFF and all raw formats store Orientation here.
+        // TIFF and many raw formats store Orientation here.
     
         return L"/ifd/{ushort=274}";
     } //ExpectedOrientationName
     
-    bool CreateOutputPath( WCHAR const * pwcIn, WCHAR * pwcOut )
+    static bool CreateOutputPath( WCHAR const * pwcIn, WCHAR * pwcOut )
     {
         WCHAR const * dot = wcsrchr( pwcIn, L'.' );
     
@@ -52,7 +52,7 @@ private:
         return true;
     } //CreateOutputPath
     
-    bool CreateSafetyPath( WCHAR const * pwcIn, WCHAR * pwcOut )
+    static bool CreateSafetyPath( WCHAR const * pwcIn, WCHAR * pwcOut )
     {
         WCHAR const * dot = wcsrchr( pwcIn, L'.' );
     
@@ -69,7 +69,7 @@ private:
         return true;
     } //CreateSafetyPath
 
-    void TraceContainerFormat( GUID & cf )
+    static void TraceContainerFormat( GUID & cf )
     {
         tracer.Trace( "  container format of source: " );
 
@@ -101,12 +101,15 @@ private:
             tracer.TraceQuiet( "(unknown): " );
 
         OLECHAR * olestr = NULL;
-        StringFromCLSID( cf, & olestr );
-        tracer.TraceQuiet( "%ws\n", olestr );
-        CoTaskMemFree( olestr );
+        HRESULT hr = StringFromCLSID( cf, & olestr );
+        if ( SUCCEEDED( hr ) )
+        {
+            tracer.TraceQuiet( "%ws\n", olestr );
+            CoTaskMemFree( olestr );
+        }
     } //TraceContainerFormat
     
-    HRESULT RotateImage90Degrees( IWICImagingFactory * pIWICFactory, WCHAR const * pwcPath, WCHAR const * pwcOutputPath, bool right )
+    static HRESULT RotateImage90Degrees( IWICImagingFactory * pIWICFactory, WCHAR const * pwcPath, WCHAR const * pwcOutputPath, bool right )
     {
         ComPtr<IWICBitmapDecoder> decoder;
         HRESULT hr = pIWICFactory->CreateDecoderFromFilename( pwcPath, NULL, GENERIC_READ, WICDecodeMetadataCacheOnDemand, decoder.GetAddressOf() );
@@ -345,7 +348,7 @@ private:
 
 public:
     
-    bool Rotate90ViaExifOrBits( IWICImagingFactory * pIWICFactory, WCHAR const * photoPath, bool infoOnly, bool rotateRight, bool updateFile )
+    static bool Rotate90ViaExifOrBits( IWICImagingFactory * pIWICFactory, WCHAR const * photoPath, bool infoOnly, bool rotateRight, bool updateFile )
     {
         bool ok = false;
     

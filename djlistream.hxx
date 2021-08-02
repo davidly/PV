@@ -23,13 +23,12 @@ class CIStream : public IStream
             offset.QuadPart = 0;
         }
 
-        CIStream( const WCHAR * pwcFile )
+        CIStream( const WCHAR * pwcFile ) :
+            refcount( 1 ),
+            pbytes( 0 ),
+            length {},
+            offset {}
         {
-            refcount = 1;
-            pbytes = 0;
-            length.QuadPart = 0;
-            offset.QuadPart = 0;
-
             HANDLE hFile = CreateFile( pwcFile, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, 0 );
 
             if ( INVALID_HANDLE_VALUE != hFile )
@@ -58,15 +57,14 @@ class CIStream : public IStream
             }
         }
 
-        CIStream( const WCHAR * pwcFile, long long subsetOffset, long long subsetLength )
+        CIStream( const WCHAR * pwcFile, long long subsetOffset, long long subsetLength ) :
+            refcount( 1 ),
+            pbytes( 0 ),
+            length {},
+            offset {}
         {
             if ( 0xffffffff00000000 & subsetLength )
                 return;
-
-            refcount = 1;
-            pbytes = 0;
-            length.QuadPart = 0;
-            offset.QuadPart = 0;
 
             HANDLE hFile = CreateFile( pwcFile, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, 0 );
 

@@ -904,8 +904,8 @@ private:
 
     void EnumerateGenericIFD( int depth, __int64 IFDOffset, __int64 headerBase, BOOL littleEndian )
     {
-        DWORD provisionalJPGOffset = 0;
-        DWORD provisionalJPGFromRAWOffset = 0;
+        __int64 provisionalJPGOffset = 0;
+        __int64 provisionalJPGFromRAWOffset = 0;
         int currentIFD = 0;
         BOOL likelyRAW = FALSE;
         vector<IFDHeader> aHeaders( MaxIFDHeaders );
@@ -1788,7 +1788,7 @@ private:
             else if ( MARKER_APP1 == record.segment )
             {
                 char app1Header[ 5 ];
-                GetBytes( offset + 4, app1Header, 4 );
+                GetBytes( (__int64) offset + 4, app1Header, 4 );
                 app1Header[4] = 0;
     
                 if ( !stricmp( app1Header, "exif" ) )
