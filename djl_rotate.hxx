@@ -116,9 +116,11 @@ private:
         if ( FAILED( hr ) ) tracer.Trace( "hr from create decoder: %#x\n", hr );
     
         ComPtr<IWICStream> fileStream = NULL;
-        ComPtr<IWICBitmapEncoder> encoder;
-        hr = pIWICFactory->CreateStream( fileStream.GetAddressOf() );
-        if ( FAILED( hr ) ) tracer.Trace( "create stream hr: %#x\n", hr );
+        if ( SUCCEEDED( hr ) )
+        {
+            hr = pIWICFactory->CreateStream( fileStream.GetAddressOf() );
+            if ( FAILED( hr ) ) tracer.Trace( "create stream hr: %#x\n", hr );
+        }
     
         if ( SUCCEEDED( hr ) )
         {
@@ -136,6 +138,7 @@ private:
     
         WCHAR const * orientationName = ExpectedOrientationName( containerFormat );
     
+        ComPtr<IWICBitmapEncoder> encoder;
         if ( SUCCEEDED( hr ) )
         {
             hr = pIWICFactory->CreateEncoder( containerFormat, NULL, encoder.GetAddressOf() );
@@ -430,7 +433,7 @@ public:
                 }
                 else
                 {
-                    tracer.Trace( "rotate failed with error %#x\n", hr );
+                    tracer.Trace( "rotate failed with error %#x file %ws, temporary file %ws\n", hr, photoPath, outputPath );
 
                     ok = false;
         
