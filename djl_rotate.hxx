@@ -19,6 +19,14 @@ using namespace std;
 
 using namespace Microsoft::WRL;
 
+// Typically:
+//   -- JPG, TIFF, Heif, and RAW file formats work by updating an existing Exif Orientation field using CImageData::RotateImage
+//      If there isn't space allocated for Exif Orientation, WIC is used to set the value then copy all other data to a new file.
+//      But for RAW files with no space allocated for Exif Orientation, there is no WIC encoder, so the rotate call will fail.
+//   -- BMP files fail to get a BlockReader object, which that codec doesn't support, and fall back to flip-rotate of pixels.
+//   -- GIF and PNG files fail in SetMetadataByName with WINCODEC_ERR_UNEXPECTEDMETADATATYPE, and fall back to flip-rotate of pixels.
+//   -- ICO files fail because WIC has no ICO encoder. There is no code here to rotate ICO files.
+
 class CImageRotation
 {
 private:
@@ -287,6 +295,9 @@ private:
         
                                 useFlipRotator = true;
                                 hr = S_OK;
+
+                                tracer.Trace( "reverting to flipRotator for file %ws\n", pwcPath );
+                                TraceContainerFormat( containerFormat );
                             }
                             else if ( FAILED( hr ) )
                                 tracer.Trace( "hr from SetMetadataByName: %#x\n", hr );

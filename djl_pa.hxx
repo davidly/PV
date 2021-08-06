@@ -152,5 +152,21 @@ class CPathArray
 
             elements.push_back( pi );
         } //Add
+
+        bool Delete( size_t item )
+        {
+            tracer.Trace( "deleting CPathArray of size %zu item %zu\n", elements.size(), item );
+
+            if ( item >= elements.size() )
+                return false;
+
+            delete elements[ item ].pwcPath;
+            elements[ item ].pwcPath = NULL;
+
+            elements.erase( elements.begin() + item );
+
+            tracer.Trace( "after deleting CPathArray item, new size %zu\n", elements.size() );
+            return true;
+        }
 }; //CPathArray
 

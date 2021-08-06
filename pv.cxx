@@ -2,8 +2,8 @@
 // Photo Viewer
 // David Lee
 //
-// Usage: pv [path of photos] (default is current directory)
-//        or, pv [path of a photo]
+// Usage:   pv [path of photos] (default is current directory)
+//          pv [path of a photo]
 //
 
 #ifndef UNICODE
@@ -641,8 +641,22 @@ HRESULT LoadCurrentFileD2D( HWND hwnd, const WCHAR * pwcPath, IStream * pStream,
 
 bool LoadCurrentFileUsingD2D( HWND hwnd )
 {
+    unique_ptr<WCHAR> titleResource( new WCHAR[ 100 ] );
+    int ret = LoadStringW( NULL, ID_PV_STRING_TITLE, titleResource.get(), 100 );
+    if ( 0 == ret )
+        titleResource.get()[0] = 0;
+
+    const int maxTitleLen = MAX_PATH + 100;
+    unique_ptr<WCHAR> winTitle( new WCHAR[ maxTitleLen ] );
+
     if ( 0 == g_pImageArray->Count() )
+    {
+        int len = swprintf_s( winTitle.get(), maxTitleLen, titleResource.get(), 0, 0, L"" );
+        if ( -1 != len )
+            SetWindowText( hwnd, winTitle.get() );
+
         return true;
+    }
 
     CCursor hourglass( LoadCursor( NULL, IDC_WAIT ) );
     int availableWidth = 0;
@@ -692,7 +706,7 @@ bool LoadCurrentFileUsingD2D( HWND hwnd )
     useLibRaw = false;
 #endif // PV_USE_LIBRAW
 
-    //tracer.Trace( "  find embedded image result %d, %lld, %lld, orientation %d useLibRaw %d for %ws\n", foundEmbedding, llEmbeddedOffset, llEmbeddedLength, orientationValue, useLibRaw, pwcFile );
+    tracer.Trace( "  find embedded image result %d, %lld, %lld, orientation %d useLibRaw %d for %ws\n", foundEmbedding, llEmbeddedOffset, llEmbeddedLength, orientationValue, useLibRaw, pwcFile );
 
     high_resolution_clock::time_point tLoadA = high_resolution_clock::now();
 
@@ -751,10 +765,9 @@ bool LoadCurrentFileUsingD2D( HWND hwnd )
     high_resolution_clock::time_point tMetadataB = high_resolution_clock::now();
     timeMetadata += duration_cast<std::chrono::nanoseconds>( tMetadataB - tMetadataA ).count();
 
-    size_t len = 1 + 100 + wcslen( pwcFile );
-    unique_ptr<WCHAR> winText( new WCHAR[ len ] );
-    swprintf_s( winText.get(), len, L"(%zd of %zd) %ws", g_currentBitmapIndex + 1, g_pImageArray->Count(), pwcFile );
-    SetWindowText( hwnd, winText.get() );
+    int len = swprintf_s( winTitle.get(), maxTitleLen, titleResource.get(), g_currentBitmapIndex + 1, g_pImageArray->Count(), pwcFile );
+    if ( -1 != len )
+        SetWindowText( hwnd, winTitle.get() );
 
     return true;
 } //LoadCurrentFileUsingD2D
@@ -982,6 +995,7 @@ extern "C" INT_PTR WINAPI HelpDialogProc( HWND hdlg, UINT message, WPARAM wParam
                                      "\n"
                                      "keyboard:\n"
                                      "\tctrl+c\t\tcopy image path and bitmap to the clipboard\n"
+                                     "\td\t\tdelete the current file\n"
                                      "\ti\t\tshow or hide image EXIF information\n"
                                      "\tl\t\trotate image left\n"
                                      "\tm\t\tshow GPS coordinates (if any) in Google Maps\n"
@@ -1247,19 +1261,21 @@ LRESULT CALLBACK WindowProc( HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam 
         {
             //tracer.Trace( "wm_command, wParam %d, lParam %d\n", wParam, lParam );
 
-            if ( ID_PV_POPUPMENU_COPY == wParam )
+            if ( ID_PV_COPY == wParam )
                 CopyCommand( hwnd );
-            else if ( ID_PV_POPUPMENU_SLIDESHOW == wParam )
+            else if ( ID_PV_DELETE == wParam )
+                SendMessage( hwnd, WM_CHAR, 'd', 0 );
+            else if ( ID_PV_SLIDESHOW == wParam )
                 SendMessage( hwnd, WM_CHAR, 's', 0 );
-            else if ( ID_PV_POPUPMENU_INFORMATION == wParam )
+            else if ( ID_PV_INFORMATION == wParam )
                 SendMessage( hwnd, WM_CHAR, 'i', 0 );
-            else if ( ID_PV_POPUPMENU_MAP == wParam )
+            else if ( ID_PV_MAP == wParam )
                 SendMessage( hwnd, WM_CHAR, 'm', 0 );
-            else if ( ID_PV_POPUPMENU_NEXT == wParam )
+            else if ( ID_PV_NEXT == wParam )
                 SendMessage( hwnd, WM_KEYDOWN, VK_RIGHT, 0 );
-            else if ( ID_PV_POPUPMENU_PREVIOUS == wParam )
+            else if ( ID_PV_PREVIOUS == wParam )
                 SendMessage( hwnd, WM_KEYDOWN, VK_LEFT, 0 );
-            else if ( ID_PV_POPUPMENU_FULLSCREEN == wParam )
+            else if ( ID_PV_FULLSCREEN == wParam )
                 SendMessage( hwnd, WM_KEYDOWN, VK_F11, 0 );
             else if ( wParam >= ID_PV_SLIDESHOW_ASAP && wParam <= ID_PV_SLIDESHOW_600 )
             {
@@ -1335,19 +1351,24 @@ LRESULT CALLBACK WindowProc( HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam 
             int len = swprintf_s( awcBuffer, _countof( awcBuffer ), L"%d %d %d %d %d %d %d %d %d %d",
                                   wp.flags, wp.showCmd, wp.ptMinPosition.x, wp.ptMinPosition.y, wp.ptMaxPosition.x, wp.ptMaxPosition.y,
                                   wp.rcNormalPosition.left, wp.rcNormalPosition.top, wp.rcNormalPosition.right, wp.rcNormalPosition.bottom );
-
-            CDJLRegistry::writeStringToRegistry( HKEY_CURRENT_USER, REGISTRY_APP_NAME, REGISTRY_WINDOW_POSITION, awcBuffer );
-            CDJLRegistry::writeStringToRegistry( HKEY_CURRENT_USER, REGISTRY_APP_NAME, REGISTRY_SHOW_METADATA, g_showMetadata ? L"Yes" : L"No" );
-            CDJLRegistry::writeStringToRegistry( HKEY_CURRENT_USER, REGISTRY_APP_NAME, REGISTRY_IN_F11_FULLSCREEN, g_inF11FullScreen ? L"Yes" : L"No" );
-
-            swprintf_s( awcBuffer, _countof( awcBuffer ), L"%d", g_photoDelay );
-            CDJLRegistry::writeStringToRegistry( HKEY_CURRENT_USER, REGISTRY_APP_NAME, REGISTRY_PHOTO_DELAY, awcBuffer );
-
-            swprintf_s( awcBuffer, _countof( awcBuffer ), L"%d", g_ProcessRAW );
-            CDJLRegistry::writeStringToRegistry( HKEY_CURRENT_USER, REGISTRY_APP_NAME, REGISTRY_PROCESS_RAW, awcBuffer );
-
-            swprintf_s( awcBuffer, _countof( awcBuffer ), L"%d", g_SortImagesBy );
-            CDJLRegistry::writeStringToRegistry( HKEY_CURRENT_USER, REGISTRY_APP_NAME, REGISTRY_SORT_IMAGES_BY, awcBuffer );
+            if ( -1 != len )
+            {
+                CDJLRegistry::writeStringToRegistry( HKEY_CURRENT_USER, REGISTRY_APP_NAME, REGISTRY_WINDOW_POSITION, awcBuffer );
+                CDJLRegistry::writeStringToRegistry( HKEY_CURRENT_USER, REGISTRY_APP_NAME, REGISTRY_SHOW_METADATA, g_showMetadata ? L"Yes" : L"No" );
+                CDJLRegistry::writeStringToRegistry( HKEY_CURRENT_USER, REGISTRY_APP_NAME, REGISTRY_IN_F11_FULLSCREEN, g_inF11FullScreen ? L"Yes" : L"No" );
+    
+                len = swprintf_s( awcBuffer, _countof( awcBuffer ), L"%d", g_photoDelay );
+                if ( -1 != len )
+                    CDJLRegistry::writeStringToRegistry( HKEY_CURRENT_USER, REGISTRY_APP_NAME, REGISTRY_PHOTO_DELAY, awcBuffer );
+    
+                len = swprintf_s( awcBuffer, _countof( awcBuffer ), L"%d", g_ProcessRAW );
+                if ( -1 != len )
+                    CDJLRegistry::writeStringToRegistry( HKEY_CURRENT_USER, REGISTRY_APP_NAME, REGISTRY_PROCESS_RAW, awcBuffer );
+    
+                len = swprintf_s( awcBuffer, _countof( awcBuffer ), L"%d", g_SortImagesBy );
+                if ( -1 != len )
+                    CDJLRegistry::writeStringToRegistry( HKEY_CURRENT_USER, REGISTRY_APP_NAME, REGISTRY_SORT_IMAGES_BY, awcBuffer );
+            }
 
             PostQuitMessage( 0 );
             return 0;
@@ -1387,6 +1408,45 @@ LRESULT CALLBACK WindowProc( HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam 
         {
             if ( 'q' == wParam || 0x1b == wParam ) // q or ESC
                 DestroyWindow( hwnd );
+            else if ( 'd' == wParam ) // Delete
+            {
+                if ( 0 != g_pImageArray->Count() )
+                {
+                    // the file is being held open and not shared for delete by WIC -- close it.
+        
+                    g_BitmapSource.Reset();
+                    g_D2DBitmap.Reset();
+    
+                    BOOL deleteWorked = DeleteFile( g_pImageArray->Get( g_currentBitmapIndex ) );
+
+                    if ( deleteWorked )
+                    {
+                        g_pImageArray->Delete( g_currentBitmapIndex );
+    
+                        if ( g_currentBitmapIndex >= g_pImageArray->Count() )
+                            g_currentBitmapIndex = 0;
+                    }
+                    else
+                    {
+                        DWORD err = GetLastError();
+                        unique_ptr<WCHAR> deleteFailed( new WCHAR[ 100 ] );
+                        int ret = LoadStringW( NULL, ID_PV_STRING_DELETE_FAILED, deleteFailed.get(), 100 );
+
+                        if ( 0 != ret )
+                        {
+                            int len = swprintf_s( awcBuffer, _countof( awcBuffer ), deleteFailed.get(), err );
+
+                            if ( -1 != len )
+                                MessageBoxEx( hwnd, awcBuffer, NULL, MB_OK, 0 );
+                        }
+                    }
+    
+                    // load the current file
+        
+                    LoadCurrentFileUsingD2D( hwnd );
+                    InvalidateRect( hwnd, NULL, TRUE );
+                }
+            }
             else if ( 'i' == wParam || ' ' == wParam )
             {
                 g_showMetadata = !g_showMetadata;
@@ -1402,6 +1462,14 @@ LRESULT CALLBACK WindowProc( HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam 
                     g_D2DBitmap.Reset();
 
                     bool ok = CImageRotation::Rotate90ViaExifOrBits( g_IWICFactory.Get(), g_pImageArray->Get( g_currentBitmapIndex ), false, 'r' == wParam, true );
+
+                    if ( !ok )
+                    {
+                        int ret = LoadStringW( NULL, ID_PV_STRING_ROTATE_FAILED, awcBuffer, _countof( awcBuffer ) );
+
+                        if ( 0 != ret )
+                            MessageBoxEx( hwnd, awcBuffer, NULL, MB_OK, 0 );
+                    }
 
                     // regardless of whether the rotate succeeded, reload the file since it was closed above
     
@@ -1441,10 +1509,17 @@ LRESULT CALLBACK WindowProc( HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam 
                     if ( g_pImageData->GetGPSLocation( g_pImageArray->Get( g_currentBitmapIndex ), &lat, &lon ) )
                     {
                         //tracer.Trace( "found lat %.7lf and lon %.7lf\n", lat, lon );
-                        int len = swprintf_s( awcBuffer, _countof( awcBuffer ), L"https://www.google.com/maps/search/?api=1&query=%lf,%lf", lat, lon );
 
-                        if ( -1 != len )
-                            ShellExecute( 0, 0, awcBuffer, 0, 0, SW_SHOW );
+                        unique_ptr<WCHAR> mapUrl( new WCHAR[ 100 ] );
+                        int ret = LoadStringW( NULL, ID_PV_STRING_MAP_URL, mapUrl.get(), 100 );
+
+                        if ( 0 != ret )
+                        {
+                            int len = swprintf_s( awcBuffer, _countof( awcBuffer ), mapUrl.get(), lat, lon );
+
+                            if ( -1 != len )
+                                ShellExecute( 0, 0, awcBuffer, 0, 0, SW_SHOW );
+                        }
                     }
                 }
             }
@@ -1614,7 +1689,7 @@ LRESULT CALLBACK WindowProc( HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam 
         }
         case WM_ERASEBKGND:
         {
-            if ( firstEraseBackground )
+            if ( firstEraseBackground || 0 == g_pImageArray->Count() )
             {
                 firstEraseBackground = false;
                 break;

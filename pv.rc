@@ -4,38 +4,48 @@
 
 ID_PV_ICON ICON "pv.ico"
 
+STRINGTABLE
+BEGIN
+    ID_PV_STRING_DELETE_FAILED  L"Unable to delete the file, error %d"
+    ID_PV_STRING_ROTATE_FAILED  L"Unable to rotate the file"
+    ID_PV_STRING_TITLE          L"Photo Viewer (%d of %d) %ws"
+    ID_PV_STRING_MAP_URL        L"https://www.google.com/maps/search/?api=1&query=%lf,%lf"
+END
+
 ID_PV_POPUPMENU MENU
 BEGIN
     POPUP "contextmenu"
     BEGIN
-        MENUITEM "&Copy\tCtrl+c", ID_PV_POPUPMENU_COPY
+        MENUITEM "&Copy\tCtrl+c",                ID_PV_COPY
         MENUITEM SEPARATOR
-        MENUITEM "&Next\tn", ID_PV_POPUPMENU_NEXT
-        MENUITEM "&Previous\tp", ID_PV_POPUPMENU_PREVIOUS
+        MENUITEM "&Delete\td",                   ID_PV_DELETE
         MENUITEM SEPARATOR
-        MENUITEM "Show/Hide &Information\ti", ID_PV_POPUPMENU_INFORMATION
-        MENUITEM "Start/Stop &Slideshow\ts", ID_PV_POPUPMENU_SLIDESHOW
-        MENUITEM "&Map Location\tm", ID_PV_POPUPMENU_MAP
+        MENUITEM "&Next\tn",                     ID_PV_NEXT
+        MENUITEM "&Previous\tp",                 ID_PV_PREVIOUS
         MENUITEM SEPARATOR
-        MENUITEM "Enter/Exit &Full Screen\tF11", ID_PV_POPUPMENU_FULLSCREEN
+        MENUITEM "Show/Hide &Information\ti",    ID_PV_INFORMATION
+        MENUITEM "&Map Location\tm",             ID_PV_MAP
         MENUITEM SEPARATOR
+        MENUITEM "Enter/Exit &Full Screen\tF11", ID_PV_FULLSCREEN
+        MENUITEM SEPARATOR
+        MENUITEM "Start/Stop &Slideshow\ts",     ID_PV_SLIDESHOW
         POPUP "Slideshow Delay"
         BEGIN
-            MENUITEM "ASAP", ID_PV_SLIDESHOW_ASAP
-            MENUITEM "1 second", ID_PV_SLIDESHOW_1
-            MENUITEM "5 seconds", ID_PV_SLIDESHOW_5
+            MENUITEM "ASAP",       ID_PV_SLIDESHOW_ASAP
+            MENUITEM "1 second",   ID_PV_SLIDESHOW_1
+            MENUITEM "5 seconds",  ID_PV_SLIDESHOW_5
             MENUITEM "15 seconds", ID_PV_SLIDESHOW_15
             MENUITEM "30 seconds", ID_PV_SLIDESHOW_30
-            MENUITEM "1 minute", ID_PV_SLIDESHOW_60
+            MENUITEM "1 minute",   ID_PV_SLIDESHOW_60
             MENUITEM "10 minutes", ID_PV_SLIDESHOW_600
         END
 #ifdef PV_USE_LIBRAW
         MENUITEM SEPARATOR
         POPUP "RAW Image Handling"
         BEGIN
-            MENUITEM "Always process RAW (ignore embedded JPG)",      ID_PV_RAW_ALWAYS
-            MENUITEM "Process RAW if the embedded JPG is tiny",       ID_PV_RAW_SMALL_JPG
-            MENUITEM "Never process RAW if an embedded JPG exists",   ID_PV_RAW_NEVER
+            MENUITEM "Always process RAW (ignore embedded JPG)",    ID_PV_RAW_ALWAYS
+            MENUITEM "Process RAW if the embedded JPG is tiny",     ID_PV_RAW_SMALL_JPG
+            MENUITEM "Never process RAW if an embedded JPG exists", ID_PV_RAW_NEVER
         END
 #endif // PV_USE_LIBRAW
         MENUITEM SEPARATOR
@@ -51,12 +61,12 @@ BEGIN
     END
 END
 
-ID_PV_HELP_DIALOG DIALOGEX 100, 100, 250, 320
+ID_PV_HELP_DIALOG DIALOGEX 100, 100, 250, 340
 STYLE DS_SETFONT | WS_POPUP | WS_CAPTION | WS_BORDER | WS_SYSMENU
 CAPTION "Photo Viewer Help"
-FONT 10, "MS Shell Dlg" //"Lucida Sans Typewriter" //"MS Shell Dlg"
+FONT 10, "MS Shell Dlg"
 BEGIN
-    LTEXT "Usage: pv", ID_PV_HELP_DIALOG_TEXT,  8, 10,  236,  310, SS_NOPREFIX
+    LTEXT "Usage: pv", ID_PV_HELP_DIALOG_TEXT,  8, 10,  236,  330, SS_NOPREFIX
 END
 
 
