@@ -9,6 +9,7 @@
 
 #include <djlsav.hxx>
 #include <djl_pa.hxx>
+#include <djltrace.hxx>
 #include <ppl.h>
 
 using namespace concurrency;
@@ -86,7 +87,10 @@ class CEnumFolder
             WCHAR awc[ MAX_PATH ];
 
             if ( ( len + 1 + specLen ) >= _countof( awc ) )
+            {
+                tracer.Trace( "skipping very long enumerate path %ws\n", pwcFolder );
                 return;
+            }
 
             wcscpy_s( awc, len + 1, pwcFolder );
             if ( L'\\' != awc[ len - 1 ] )
@@ -129,6 +133,10 @@ class CEnumFolder
                                     resultStrings->Add( awc );
                             }
                         }
+                        else
+                        {
+                            tracer.Trace( "skipping very long path %ws and file %ws\n", awc, fd.cFileName );
+                        }
                     }
                 } while ( FindNextFile( hFile, &fd ) );
         
@@ -155,7 +163,10 @@ class CEnumFolder
                                 size_t fileLen = wcslen( fd.cFileName );
                 
                                 if ( ( len + fileLen + 2 ) >= _countof( awc ) )
+                                {
+                                    tracer.Trace( "skipping very long path %ws and directory %ws\n", awc, fd.cFileName );
                                     continue;
+                                }
 
                                 wcscpy_s( awc + len, fileLen + 1, fd.cFileName );
                                 wcscpy_s( awc + len + fileLen, 2, L"\\" );

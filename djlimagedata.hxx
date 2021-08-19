@@ -117,12 +117,12 @@ private:
     };
     
     std::mutex g_mtx;
+    CCropFactor g_factor;
     CStream * g_pStream = NULL;
-    CCropFactor factor;
     const double InvalidCoordinate = 1000.0;
-    static const int MaxIFDHeaders = 200; // assume anything more than this is a corrupt or badly parsed file
+    static const WORD MaxIFDHeaders = 200; // assume anything more than this is a corrupt or badly parsed file
     
-    WCHAR g_awcPath[ MAX_PATH + 1 ] = { 0, 0 };
+    WCHAR g_awcPath[ MAX_PATH + 1 ];
     FILETIME g_ftWrite;
     
     DWORD g_Heif_Exif_ItemID                = 0xffffffff;
@@ -168,8 +168,10 @@ private:
     double g_Longitude;
     char g_acLensMake[ 100 ];
     char g_acLensModel[ 100 ];
-    char g_acMake[ 100 ] = { 0, 0, 0 };
-    char g_acModel[ 100 ] = { 0, 0, 0 };
+    char g_acLensSerialNumber[ 100 ];
+    char g_acMake[ 100 ];
+    char g_acModel[ 100 ];
+    char g_acSerialNumber[ 100 ];
     
     WORD FixEndianWORD( WORD w, bool littleEndian )
     {
@@ -179,62 +181,77 @@ private:
         return w;
     } //FixEndianWORD
     
-    unsigned long long GetULONGLONG( __int64 offset, BOOL littleEndian )
+    unsigned long long GetULONGLONG( __int64 offset, bool littleEndian )
     {
-        g_pStream->Seek( offset );
         unsigned long long ull = 0;
-        g_pStream->Read( &ull, sizeof ull );
+
+        if ( g_pStream->Seek( offset ) )
+        {
+            g_pStream->Read( &ull, sizeof ull );
     
-        if ( !littleEndian )
-            ull = _byteswap_uint64( ull );
+            if ( !littleEndian )
+                ull = _byteswap_uint64( ull );
+        }
     
         return ull;
     } //GetULONGULONG
 
-    DWORD GetDWORD( __int64 offset, BOOL littleEndian )
+    DWORD GetDWORD( __int64 offset, bool littleEndian )
     {
-        g_pStream->Seek( offset );
         DWORD dw = 0;     // Note: some files are malformed and point to reads beyond the EOF. Return 0 in these cases
-        g_pStream->Read( &dw, sizeof dw );
+
+        if ( g_pStream->Seek( offset ) )
+        {
+            g_pStream->Read( &dw, sizeof dw );
     
-        if ( !littleEndian )
-            dw = _byteswap_ulong( dw );
+            if ( !littleEndian )
+                dw = _byteswap_ulong( dw );
+        }
     
         return dw;
     } //GetDWORD
     
-    WORD GetWORD( __int64 offset, BOOL littleEndian )
+    WORD GetWORD( __int64 offset, bool littleEndian )
     {
-        g_pStream->Seek( offset );
         WORD w = 0;
-        g_pStream->Read( &w, sizeof w );
+
+        if ( g_pStream->Seek( offset ) )
+        {
+            g_pStream->Read( &w, sizeof w );
     
-        if ( !littleEndian )
-            w = _byteswap_ushort( w );
+            if ( !littleEndian )
+                w = _byteswap_ushort( w );
+        }
     
         return w;
     } //GetWORD
     
     byte GetBYTE( __int64 offset )
     {
-        g_pStream->Seek( offset );
         byte b = 0;
-        g_pStream->Read( &b, sizeof b );
+
+        if ( g_pStream->Seek( offset ) )
+            g_pStream->Read( &b, sizeof b );
     
         return b;
     } //GetBYTE
 
     void GetBytes( __int64 offset, void * pData, int byteCount )
     {
-        g_pStream->Seek( offset );
         memset( pData, 0, byteCount );
-        g_pStream->Read( pData, byteCount );
+
+        if ( g_pStream->Seek( offset ) )
+            g_pStream->Read( pData, byteCount );
     } //GetBytes
 
     bool GetIFDHeaders( __int64 offset, IFDHeader * pHeader, WORD numHeaders, bool littleEndian )
     {
+        if ( 0 == numHeaders )
+            return true;
+
         bool ok = true;
         int cb = sizeof IFDHeader * numHeaders;
+
         GetBytes( offset, pHeader, cb );
         for ( WORD i = 0; i < numHeaders; i++ )
             pHeader[i].Endian( littleEndian );
@@ -268,29 +285,39 @@ private:
     
     void GetString( __int64 offset, char * pcOutput, int outputSize, int maxBytes )
     {
-        g_pStream->Seek( offset );
-        int maxlen = __min( outputSize - 1, maxBytes );
-        g_pStream->Read( pcOutput, maxlen );
+        if ( outputSize <= 0 )
+            return;
 
-        // In case the string wasn't already null terminated because it wasn't stored with a null or the
-        // count of bytes didn't include the null termination, add it now. This may add a second null,
-        // which is OK.
+        *pcOutput = 0;
 
-        pcOutput[ maxlen ] = 0;
+        if ( maxBytes < 0 )
+            maxBytes = 0;
 
-        // These strings sometimes have trailing spaces. Remove them.
-    
-        size_t len = strlen( pcOutput );
-        len--;
-    
-        while ( len >= 0 )
+        if ( g_pStream->Seek( offset ) )
         {
-            if ( ' ' == pcOutput[ len ] )
-                pcOutput[ len ] = 0;
-            else
-                break;
+            int maxlen = __min( outputSize - 1, maxBytes );
+            g_pStream->Read( pcOutput, maxlen );
     
+            // In case the string wasn't already null terminated because it wasn't stored with a null or the
+            // count of bytes didn't include the null termination, add it now. This may add a second null,
+            // which is OK.
+    
+            pcOutput[ maxlen ] = 0;
+    
+            // These strings sometimes have trailing spaces. Remove them.
+        
+            size_t len = strlen( pcOutput );
             len--;
+        
+            while ( len >= 0 )
+            {
+                if ( ' ' == pcOutput[ len ] )
+                    pcOutput[ len ] = 0;
+                else
+                    break;
+        
+                len--;
+            }
         }
     } //GetString
     
@@ -318,17 +345,17 @@ private:
 
     bool IsPerhapsAnImage( __int64 offset, __int64 headerBase )
     {
-        unsigned long long x = GetULONGLONG( offset + headerBase, TRUE );
+        unsigned long long x = GetULONGLONG( offset + headerBase, true );
 
         return IsPerhapsAnImageHeader( x );
     } //IsPerhapsAnImage
 
-    void EnumerateGPSTags( int depth, __int64 IFDOffset, __int64 headerBase, BOOL littleEndian )
+    void EnumerateGPSTags( int depth, __int64 IFDOffset, __int64 headerBase, bool littleEndian )
     {
         if ( 0xffffffff == IFDOffset )
             return;
     
-        char acBuffer[ 200 ];
+        char acBuffer[ 10 ];
         bool latNeg = false;
         bool lonNeg = false;
         vector<IFDHeader> aHeaders( MaxIFDHeaders );
@@ -355,7 +382,7 @@ private:
                 {
                     __int64 stringOffset = ( head.count <= 4 ) ? ( IFDOffset - 4 ) : head.offset;
                     GetString( stringOffset + headerBase, acBuffer, _countof( acBuffer ), head.count );
-    
+
                     if ( 'S' == toupper( acBuffer[0] ) )
                         latNeg = true;
                 }
@@ -379,7 +406,7 @@ private:
                 {
                     __int64 stringOffset = ( head.count <= 4 ) ? ( IFDOffset - 4 ) : head.offset;
                     GetString( stringOffset + headerBase, acBuffer, _countof( acBuffer ), head.count );
-    
+
                     if ( 'W' == toupper( acBuffer[0] ) )
                         lonNeg = true;
                 }
@@ -414,7 +441,7 @@ private:
             g_Longitude = -g_Longitude;
     } //EnumerateGPSTags
     
-    void EnumerateNikonPreviewIFD( int depth, __int64 IFDOffset, __int64 headerBase, BOOL littleEndian )
+    void EnumerateNikonPreviewIFD( int depth, __int64 IFDOffset, __int64 headerBase, bool littleEndian )
     {
         vector<IFDHeader> aHeaders( MaxIFDHeaders );
         __int64 provisionalOffset = 0;
@@ -456,7 +483,7 @@ private:
         }
     } //EnumerateNikonPreviewIFD
     
-    void EnumerateNikonMakernotes( int depth, __int64 IFDOffset, __int64 headerBase, BOOL littleEndian )
+    void EnumerateNikonMakernotes( int depth, __int64 IFDOffset, __int64 headerBase, bool littleEndian )
     {
         // https://www.exiv2.org/tags-nikon.html
     
@@ -498,7 +525,7 @@ private:
         }
     } //EnumerateNikonMakernotes
     
-    void EnumerateOlympusCameraSettingsIFD( int depth, __int64 IFDOffset, __int64 headerBase, BOOL littleEndian )
+    void EnumerateOlympusCameraSettingsIFD( int depth, __int64 IFDOffset, __int64 headerBase, bool littleEndian )
     {
         __int64 originalIFDOffset = IFDOffset;
         bool previewIsValid = false;
@@ -540,22 +567,60 @@ private:
         }
     } //EnumerateOlympusCameraSettingsIFD
     
-    void EnumerateMakernotes( int depth, __int64 IFDOffset, __int64 headerBase, BOOL littleEndian )
+    void EnumerateFujifilmMakernotes( int depth, __int64 IFDOffset, __int64 headerBase, bool littleEndian )
+    {
+        // https://www.exiv2.org/tags-fujifilm.html
+    
+        vector<IFDHeader> aHeaders( MaxIFDHeaders );
+    
+        // In Fujifilm files, the base is not relative to the prior base; it's relative to the IFD start.
+    
+        DWORD tagHeaderBase = IFDOffset - 12;
+    
+        while ( 0 != IFDOffset ) 
+        {
+            WORD NumTags = GetWORD( IFDOffset + headerBase, littleEndian );
+            IFDOffset += 2;
+    
+            if ( NumTags > MaxIFDHeaders )
+                break;
+        
+            if ( !GetIFDHeaders( IFDOffset + headerBase, aHeaders.data(), NumTags, littleEndian ) )
+                break;
+    
+            for ( int i = 0; i < NumTags; i++ )
+            {
+                IFDHeader & head = aHeaders[ i ];
+                IFDOffset += sizeof IFDHeader;
+    
+                if ( 16 == head.id )
+                {
+                    ULONG stringOffset = ( head.count <= 4 ) ? ( IFDOffset - 4 ) : head.offset;
+                    GetString( stringOffset + tagHeaderBase + headerBase, g_acSerialNumber, _countof( g_acSerialNumber ), head.count );
+                    //tracer.Trace( "fujifilm makernote (alternate) Serial #: %s\n", g_acSerialNumber );
+                }
+            }
+    
+            IFDOffset = GetDWORD( IFDOffset + headerBase, littleEndian );
+        }
+    } //EnumerateFujifilmMakernotes
+
+    void EnumerateMakernotes( int depth, __int64 IFDOffset, __int64 headerBase, bool littleEndian )
     {
         __int64 originalIFDOffset = IFDOffset;
     
-        BOOL isLeica = FALSE;
-        BOOL isOlympus = FALSE;
-        BOOL isPentax = FALSE;
-        BOOL isNikon = FALSE;
-        BOOL isFujifilm = FALSE;
-        BOOL isRicoh = FALSE;
-        BOOL isRicohTheta = FALSE;
-        BOOL isEastmanKodak = FALSE;
-        BOOL isPanasonic = FALSE;
-        BOOL isApple = FALSE;
-        BOOL isSony = FALSE;
-        BOOL isCanon = FALSE;
+        bool isLeica = false;
+        bool isOlympus = false;
+        bool isPentax = false;
+        bool isNikon = false;
+        bool isFujifilm = false;
+        bool isRicoh = false;
+        bool isRicohTheta = false;
+        bool isEastmanKodak = false;
+        bool isPanasonic = false;
+        bool isApple = false;
+        bool isSony = false;
+        bool isCanon = false;
     
         // Note: Canon and Sony cameras have no manufacturer string filler before the IFD begins
     
@@ -568,7 +633,7 @@ private:
             // https://www.exiv2.org/tags-nikon.html     Format 3 for D100
     
             IFDOffset += 8;
-            isNikon = TRUE;
+            isNikon = true;
     
             EnumerateNikonMakernotes( depth, IFDOffset, headerBase, littleEndian );
             return;
@@ -582,7 +647,7 @@ private:
             // https://www.exiv2.org/tags-nikon.html     Format 3 for D100
     
             IFDOffset += 8;
-            isNikon = TRUE;
+            isNikon = true;
     
             EnumerateNikonMakernotes( depth, IFDOffset, headerBase, littleEndian );
             return;
@@ -596,7 +661,7 @@ private:
             // https://www.exiv2.org/tags-nikon.html     Format 3 for D100
     
             IFDOffset += 8;
-            isNikon = TRUE;
+            isNikon = true;
     
             EnumerateNikonMakernotes( depth, IFDOffset, headerBase, littleEndian );
             return;
@@ -604,14 +669,14 @@ private:
         else if ( !strcmp( g_acMake, "LEICA CAMERA AG" ) )
         {
             IFDOffset += 8;
-            isLeica = TRUE;
+            isLeica = true;
         }
         else if ( !strcmp( g_acMake, "RICOH IMAGING COMPANY, LTD." ) )
         {
             // GR III, etc.
     
             IFDOffset += 8;
-            isRicoh = TRUE;
+            isRicoh = true;
     
             if ( !strcmp( g_acModel, "PENTAX K-3 Mark III" ) )
                 IFDOffset += 2;
@@ -621,72 +686,72 @@ private:
             // THETA, etc.
     
             IFDOffset += 8;
-            isRicohTheta = TRUE;
+            isRicohTheta = true;
         }
         else if ( !strcmp( g_acMake, "PENTAX" ) )
         {
             IFDOffset += 6;
-            isPentax = TRUE;
+            isPentax = true;
         }
         else if ( !strcmp( g_acMake, "OLYMPUS IMAGING CORP." ) )
         {
             IFDOffset += 12;
-            isOlympus = TRUE;
+            isOlympus = true;
         }
         else if ( !strcmp( g_acMake, "OLYMPUS CORPORATION" ) )
         {
             IFDOffset += 12;
-            isOlympus = TRUE;
+            isOlympus = true;
         }
         else if ( !strcmp( g_acMake, "Eastman Kodak Company" ) )
         {
-            isEastmanKodak = TRUE;
+            isEastmanKodak = true;
             return; // apparently unparsable
         }
         else if ( !strcmp( g_acMake, "FUJIFILM" ) )
         {
             IFDOffset += 12;
-            isFujifilm = TRUE;
+            isFujifilm = true;
     
-            //EnumerateFujifilmMakernotes( depth, IFDOffset, headerBase, littleEndian );
+            EnumerateFujifilmMakernotes( depth, IFDOffset, headerBase, littleEndian );
             return;
         }
         else if ( !strcmp( g_acMake, "Panasonic" ) )
         {
             IFDOffset += 12;
-            isPanasonic = TRUE;
+            isPanasonic = true;
         }
         else if ( !strcmp( g_acMake, "Apple" ) )
         {
             if ( !strcmp( g_acModel, "iPhone 12" ) )
             {
                 IFDOffset += 14;
-                littleEndian = FALSE;
+                littleEndian = false;
             }
             else
                 IFDOffset += 14;
     
-            isApple = TRUE;
+            isApple = true;
         }
         else if ( !strcmp( g_acMake, "SONY" ) ) // real camera
         {
-            isSony = TRUE;
+            isSony = true;
         }
         else if ( !strcmp( g_acMake, "Sony" ) ) // cellphone
         {
             IFDOffset += 12;
-            isSony = TRUE;
+            isSony = true;
         }
         else if ( !strcmp( g_acMake, "CANON" ) )
         {
-            isCanon = TRUE;
+            isCanon = true;
         }
         else if ( !strcmp( g_acMake, "" ) )
         {
             if ( !strcmp( g_acModel, "DMC-GM1" ) )
             {
                 IFDOffset += 12;
-                isPanasonic = TRUE;
+                isPanasonic = true;
             }
         }
     
@@ -710,7 +775,15 @@ private:
                 IFDHeader & head = aHeaders[ i ];
                 IFDOffset += sizeof IFDHeader;
 
-                if ( 224 == head.id && 17 == head.count )
+                if ( 12 == head.id && 4 == head.type && 1 == head.count && isCanon )
+                {
+                    if ( 0 == g_acSerialNumber )
+                    {
+                        sprintf_s( g_acSerialNumber, _countof( g_acSerialNumber ), "%d", head.offset );
+                        //tracer.Trace( "canon makernote serial number: %s\n", g_acSerialNumber );
+                    }
+                }
+                else if ( 224 == head.id && 17 == head.count )
                 {
                     struct SensorData
                     {
@@ -728,6 +801,13 @@ private:
                     short rightBorder = FixEndianWORD( sd.rborder, littleEndian );
                     short bottomBorder = FixEndianWORD( sd.bborder, littleEndian );
                 }
+                else if ( 1280 == head.id && isLeica )
+                {
+                    //char acInternalSerialNumber[ 100 ];
+                    //ULONG stringOffset = ( head.count <= 4 ) ? ( IFDOffset - 4 ) : head.offset;
+                    //GetString( stringOffset + headerBase, acInternalSerialNumber, _countof( acInternalSerialNumber ), head.count );
+                    //tracer.Trace( "leica makernote InternalSerialNumber count %d: %s\n", head.count, acInternalSerialNumber );
+                }
                 else if ( 8224 == head.id && 13 == head.type && isOlympus )
                 {
                     EnumerateOlympusCameraSettingsIFD( depth + 1, head.offset, originalIFDOffset + headerBase, littleEndian );
@@ -738,7 +818,7 @@ private:
         }
     } //EnumerateMakernotes
     
-    void EnumerateExifTags( int depth, __int64 IFDOffset, __int64 headerBase, BOOL littleEndian )
+    void EnumerateExifTags( int depth, __int64 IFDOffset, __int64 headerBase, bool littleEndian )
     {
         DWORD XResolutionNum = 0;
         DWORD XResolutionDen = 0;
@@ -847,6 +927,12 @@ private:
                 {
                     g_FocalLengthIn35mmFilm = head.offset;
                 }
+                else if ( 42033 == head.id && 2 == head.type )
+                {
+                    __int64 stringOffset = ( head.count <= 4 ) ? ( IFDOffset - 4 ) : head.offset;
+                    GetString( stringOffset + headerBase, g_acSerialNumber, _countof( g_acSerialNumber ), head.count );
+                    //tracer.Trace( "exif Body Serial Number: %s\n", g_acSerialNumber );
+                }
                 else if ( 42035 == head.id && 2 == head.type )
                 {
                     __int64 stringOffset = ( head.count <= 4 ) ? ( IFDOffset - 4 ) : head.offset;
@@ -856,6 +942,12 @@ private:
                 {
                     __int64 stringOffset = ( head.count <= 4 ) ? ( IFDOffset - 4 ) : head.offset;
                     GetString( stringOffset + headerBase, g_acLensModel, _countof( g_acLensModel ), head.count );
+                }
+                else if ( 42037 == head.id && 2 == head.type )
+                {
+                    __int64 stringOffset = ( head.count <= 4 ) ? ( IFDOffset - 4 ) : head.offset;
+                    GetString( stringOffset + headerBase, g_acLensSerialNumber, _countof( g_acLensSerialNumber ), head.count );
+                    //tracer.Trace( "exif Lens Serial Number: %s\n", g_acLensSerialNumber );
                 }
             }
     
@@ -902,12 +994,12 @@ private:
         }
     } //EnumerateExifTags
 
-    void EnumerateGenericIFD( int depth, __int64 IFDOffset, __int64 headerBase, BOOL littleEndian )
+    void EnumerateGenericIFD( int depth, __int64 IFDOffset, __int64 headerBase, bool littleEndian )
     {
         __int64 provisionalJPGOffset = 0;
         __int64 provisionalJPGFromRAWOffset = 0;
         int currentIFD = 0;
-        BOOL likelyRAW = FALSE;
+        bool likelyRAW = false;
         vector<IFDHeader> aHeaders( MaxIFDHeaders );
     
         while ( 0 != IFDOffset ) 
@@ -981,7 +1073,7 @@ private:
         }
     } //EnumerateGenericIFD
     
-    void PrintPanasonicIFD0Tag( int depth, WORD tagID, WORD tagType, DWORD tagCount, DWORD tagOffset, __int64 headerBase, BOOL littleEndian, __int64 IFDOffset )
+    void GetPanasonicIFD0Tag( int depth, WORD tagID, WORD tagType, DWORD tagCount, DWORD tagOffset, __int64 headerBase, bool littleEndian, __int64 IFDOffset )
     {
         if ( 2 == tagID )
         {
@@ -1000,7 +1092,7 @@ private:
             g_Embedded_Image_Offset = tagOffset;
             g_Embedded_Image_Length = tagCount;
         }
-    } //PrintPanasonicIFD0Tag
+    } //GetPanasonicIFD0Tag
     
     void EnumerateFlac()
     {
@@ -1010,10 +1102,10 @@ private:
     
         do
         {
-            ULONG blockHeader = GetDWORD( offset, FALSE );
+            ULONG blockHeader = GetDWORD( offset, false );
             offset += 4;
     
-            BOOL lastBlock = ( 0 != ( 0x80000000 & blockHeader ) );
+            bool lastBlock = ( 0 != ( 0x80000000 & blockHeader ) );
             BYTE blockType = ( ( blockHeader >> 24 ) & 0x7f );
             ULONG length = blockHeader & 0xffffff;
     
@@ -1028,39 +1120,39 @@ private:
     
                 DWORD o = offset;
     
-                DWORD pictureType = GetDWORD( o, FALSE );
+                DWORD pictureType = GetDWORD( o, false );
     
                 o += 4;
     
-                DWORD mimeTypeBytes = GetDWORD( o, FALSE );
+                DWORD mimeTypeBytes = GetDWORD( o, false );
                 if ( mimeTypeBytes > 1000 )
                     return;
     
                 o += 4;
                 o += mimeTypeBytes;
     
-                DWORD descriptionBytes = GetDWORD( o, FALSE );
+                DWORD descriptionBytes = GetDWORD( o, false );
                 if ( descriptionBytes > 1000 )
                     return;
     
                 o += 4;
                 o += descriptionBytes;
     
-                DWORD width = GetDWORD( o, FALSE );
+                DWORD width = GetDWORD( o, false );
                 g_ImageWidth = width;
                 o += 4;
     
-                DWORD height = GetDWORD( o, FALSE );
+                DWORD height = GetDWORD( o, false );
                 g_ImageHeight = height;
                 o += 4;
     
-                DWORD bpp = GetDWORD( o, FALSE );
+                DWORD bpp = GetDWORD( o, false );
                 o += 4;
     
-                DWORD indexedColors = GetDWORD( o, FALSE );
+                DWORD indexedColors = GetDWORD( o, false );
                 o += 4;
     
-                DWORD imageLength = GetDWORD( o, FALSE );
+                DWORD imageLength = GetDWORD( o, false );
                 o += 4;
     
                 if ( ( imageLength > 2 ) && IsPerhapsAnImage( o, 0 ) )
@@ -1074,7 +1166,7 @@ private:
     
             if ( lastBlock )
                 break;
-        } while ( TRUE );
+        } while ( true );
     } //EnumerateFlac
     
     class HeifStream
@@ -1096,44 +1188,50 @@ private:
             __int64 Offset() { return offset; }
             CStream * Stream() { return pStream; }
     
-            DWORD GetDWORD( __int64 & streamOffset, BOOL littleEndian )
+            DWORD GetDWORD( __int64 & streamOffset, bool littleEndian )
             {
-                pStream->Seek( offset + streamOffset );
-    
                 DWORD dw = 0;
-                pStream->Read( &dw, sizeof dw );
+
+                if ( pStream->Seek( offset + streamOffset ) )
+                {
+                    pStream->Read( &dw, sizeof dw );
     
-                if ( !littleEndian )
-                    dw = _byteswap_ulong( dw );
+                    if ( !littleEndian )
+                        dw = _byteswap_ulong( dw );
     
-                streamOffset += sizeof dw;
+                    streamOffset += sizeof dw;
+                }
     
                 return dw;
             } //GetDWORD
     
-            WORD GetWORD( __int64 & streamOffset, BOOL littleEndian )
+            WORD GetWORD( __int64 & streamOffset, bool littleEndian )
             {
-                pStream->Seek( offset + streamOffset );
-    
                 WORD w = 0;
-                pStream->Read( &w, sizeof w );
+
+                if ( pStream->Seek( offset + streamOffset ) )
+                {
+                    pStream->Read( &w, sizeof w );
             
-                if ( !littleEndian )
-                    w = _byteswap_ushort( w );
+                    if ( !littleEndian )
+                        w = _byteswap_ushort( w );
     
-                streamOffset += sizeof w;
+                    streamOffset += sizeof w;
+                }
             
                 return w;
             } //GetWORD
     
             byte GetBYTE( __int64 & streamOffset )
             {
-                pStream->Seek( offset + streamOffset );
+                byte b = 0;
+
+                if ( pStream->Seek( offset + streamOffset ) )
+                {
+                    pStream->Read( &b, sizeof b );
     
-                byte b;
-                pStream->Read( &b, sizeof b );
-    
-                streamOffset += sizeof b;
+                    streamOffset += sizeof b;
+                }
     
                 return b;
             } //GetBYTE
@@ -1155,12 +1253,12 @@ private:
                 break;
     
             __int64 boxOffset = offset;
-            ULONGLONG boxLen = hs->GetDWORD( offset, FALSE );
+            ULONGLONG boxLen = hs->GetDWORD( offset, false );
     
             if ( 0 == boxLen )
                 break;
     
-            DWORD dwTag = hs->GetDWORD( offset, FALSE );
+            DWORD dwTag = hs->GetDWORD( offset, false );
             char tag[ 5 ];
             tag[ 3 ] = dwTag & 0xff;
             tag[ 2 ] = ( dwTag >> 8 ) & 0xff;
@@ -1170,8 +1268,8 @@ private:
     
             if ( 1 == boxLen )
             {
-                ULONGLONG high = hs->GetDWORD( offset, FALSE );
-                ULONGLONG low = hs->GetDWORD( offset, FALSE );
+                ULONGLONG high = hs->GetDWORD( offset, false );
+                ULONGLONG low = hs->GetDWORD( offset, false );
     
                 boxLen = ( high << 32 ) | low;
             }
@@ -1188,11 +1286,11 @@ private:
                     brand[ i ] = (char) hs->GetBYTE( offset );
                 brand[ 4 ] = 0;
     
-                DWORD version = hs->GetDWORD( offset, FALSE );
+                DWORD version = hs->GetDWORD( offset, false );
             }
             else if ( !strcmp( tag, "meta" ) )
             {
-                DWORD data = hs->GetDWORD( offset, TRUE );
+                DWORD data = hs->GetDWORD( offset, true );
     
                 HeifStream hsChild( hs->Stream(), hs->Offset() + offset, boxLen - ( offset - boxOffset ) );
     
@@ -1200,7 +1298,7 @@ private:
             }
             else if ( !strcmp( tag, "iinf" ) )
             {
-                DWORD data = hs->GetDWORD( offset, FALSE );
+                DWORD data = hs->GetDWORD( offset, false );
                 BYTE version = (BYTE) ( ( data >> 24 ) & 0xff );
                 DWORD flags = data & 0x00ffffff;
     
@@ -1208,9 +1306,9 @@ private:
                 DWORD entries = 0;
     
                 if ( 2 == entriesSize )
-                    entries = hs->GetWORD( offset, FALSE );
+                    entries = hs->GetWORD( offset, false );
                 else
-                    entries = hs->GetDWORD( offset, FALSE );
+                    entries = hs->GetDWORD( offset, false );
     
                 if ( entries > 0 )
                 {
@@ -1221,14 +1319,14 @@ private:
             }
             else if ( !strcmp( tag, "infe" ) )
             {
-                DWORD data = hs->GetDWORD( offset, FALSE );
+                DWORD data = hs->GetDWORD( offset, false );
                 BYTE version = (BYTE) ( ( data >> 24 ) & 0xff );
                 DWORD flags = data & 0x00ffffff;
     
                 if ( version <= 1 )
                 {
-                    WORD itemID = hs->GetWORD( offset, FALSE );
-                    WORD itemProtection = hs->GetWORD( offset, FALSE );
+                    WORD itemID = hs->GetWORD( offset, false );
+                    WORD itemProtection = hs->GetWORD( offset, false );
                 }
                 else if ( version >= 2 )
                 {
@@ -1237,11 +1335,11 @@ private:
                     ULONG itemID = 0;
     
                     if ( 2 == version )
-                        itemID = hs->GetWORD( offset, FALSE );
+                        itemID = hs->GetWORD( offset, false );
                     else
-                        itemID = hs->GetDWORD( offset, FALSE );
+                        itemID = hs->GetDWORD( offset, false );
     
-                    WORD protectionIndex = hs->GetWORD( offset, FALSE );
+                    WORD protectionIndex = hs->GetWORD( offset, false );
     
                     char itemType[ 5 ];
                     for ( int i = 0; i < 4; i++ )
@@ -1254,11 +1352,11 @@ private:
             }
             else if ( !strcmp( tag, "iloc" ) )
             {
-                DWORD data = hs->GetDWORD( offset, FALSE );
+                DWORD data = hs->GetDWORD( offset, false );
                 BYTE version = (BYTE) ( ( data >> 24 ) & 0xff );
                 DWORD flags = data & 0x00ffffff;
     
-                WORD values4 = hs->GetWORD( offset, FALSE );
+                WORD values4 = hs->GetWORD( offset, false );
                 int offsetSize = ( values4 >> 12 ) & 0xf;
                 int lengthSize = ( values4 >> 8 ) & 0xf;
                 int baseOffsetSize = ( values4 >> 4 ) & 0xf;
@@ -1270,45 +1368,45 @@ private:
                 int itemCount = 0;
     
                 if ( version < 2 )
-                    itemCount = hs->GetWORD( offset, FALSE );
+                    itemCount = hs->GetWORD( offset, false );
                 else
-                    itemCount = hs->GetDWORD( offset, FALSE );
+                    itemCount = hs->GetDWORD( offset, false );
     
                 for ( int i = 0; i < itemCount; i++ )
                 {
                     int itemID = 0;
     
                     if ( version < 2 )
-                        itemID = hs->GetWORD( offset, FALSE );
+                        itemID = hs->GetWORD( offset, false );
                     else
-                        itemID = hs->GetWORD( offset, FALSE );
+                        itemID = hs->GetWORD( offset, false );
     
                     BYTE constructionMethod = 0;
     
                     if ( version >= 1 )
                     {
-                        values4 = hs->GetWORD( offset, FALSE );
+                        values4 = hs->GetWORD( offset, false );
     
                         constructionMethod = ( values4 & 0xf );
                     }
     
-                    WORD dataReferenceIndex = hs->GetWORD( offset, FALSE );
+                    WORD dataReferenceIndex = hs->GetWORD( offset, false );
     
                     __int64 baseOffset = 0;
     
                     if ( 4 == baseOffsetSize )
                     {
-                        baseOffset = hs->GetDWORD( offset, FALSE );
+                        baseOffset = hs->GetDWORD( offset, false );
                     }
                     else if ( 8 == baseOffsetSize )
                     {
-                        __int64 high = hs->GetDWORD( offset, FALSE );
-                        __int64 low = hs->GetDWORD( offset, FALSE );
+                        __int64 high = hs->GetDWORD( offset, false );
+                        __int64 low = hs->GetDWORD( offset, false );
     
                         baseOffset = ( high << 32 ) | low;
                     }
     
-                    WORD extentCount = hs->GetWORD( offset, FALSE );
+                    WORD extentCount = hs->GetWORD( offset, false );
     
                     for ( int e = 0; e < extentCount; e++ )
                     {
@@ -1320,12 +1418,12 @@ private:
                         {
                             if ( 4 == indexSize )
                             {
-                                extentIndex = hs->GetDWORD( offset, FALSE );
+                                extentIndex = hs->GetDWORD( offset, false );
                             }
                             else if ( 8 == indexSize )
                             {
-                                __int64 high = hs->GetDWORD( offset, FALSE );
-                                __int64 low = hs->GetDWORD( offset, FALSE );
+                                __int64 high = hs->GetDWORD( offset, false );
+                                __int64 low = hs->GetDWORD( offset, false );
     
                                 extentIndex = ( high << 32 ) | low;
                             }
@@ -1333,24 +1431,24 @@ private:
     
                         if ( 4 == offsetSize )
                         {
-                            extentOffset = hs->GetDWORD( offset, FALSE );
+                            extentOffset = hs->GetDWORD( offset, false );
                         }
                         else if ( 8 == offsetSize )
                         {
-                            __int64 high = hs->GetDWORD( offset, FALSE );
-                            __int64 low = hs->GetDWORD( offset, FALSE );
+                            __int64 high = hs->GetDWORD( offset, false );
+                            __int64 low = hs->GetDWORD( offset, false );
     
                             extentOffset = ( high << 32 ) | low;
                         }
     
                         if ( 4 == lengthSize )
                         {
-                            extentLength = hs->GetDWORD( offset, FALSE );
+                            extentLength = hs->GetDWORD( offset, false );
                         }
                         else if ( 8 == lengthSize )
                         {
-                            __int64 high = hs->GetDWORD( offset, FALSE );
-                            __int64 low = hs->GetDWORD( offset, FALSE );
+                            __int64 high = hs->GetDWORD( offset, false );
+                            __int64 low = hs->GetDWORD( offset, false );
     
                             extentLength = ( high << 32 ) | low;
                         }
@@ -1368,10 +1466,10 @@ private:
                 BYTE version = hs->GetBYTE( offset );
                 BYTE byteInfo = hs->GetBYTE( offset );
                 BYTE profileSpace = ( byteInfo >> 6 ) & 3;
-                BOOL tierFlag = 0 != ( ( byteInfo >> 4 ) & 0x1 );
+                bool tierFlag = 0 != ( ( byteInfo >> 4 ) & 0x1 );
                 BYTE  profileIDC = byteInfo & 0x1f;
     
-                DWORD profileCompatibilityFlags = hs->GetDWORD( offset, FALSE );
+                DWORD profileCompatibilityFlags = hs->GetDWORD( offset, false );
     
                 for ( int i = 0; i < 6; i++ )
                 {
@@ -1379,12 +1477,12 @@ private:
                 }
     
                 BYTE generalLevelIDC = hs->GetBYTE( offset );
-                WORD minSpacialSegmentationIDC = hs->GetWORD( offset, FALSE ) & 0xfff;
+                WORD minSpacialSegmentationIDC = hs->GetWORD( offset, false ) & 0xfff;
                 BYTE parallelismType = hs->GetBYTE( offset ) & 0x3;
                 BYTE chromaFormat = hs->GetBYTE( offset ) & 0x3;
                 BYTE bitDepthLuma = ( hs->GetBYTE( offset ) & 0x7 ) + 8;
                 BYTE bitDepthChroma = ( hs->GetBYTE( offset ) & 0x7 ) + 8;
-                WORD avgFrameRate = hs->GetWORD( offset, FALSE );
+                WORD avgFrameRate = hs->GetWORD( offset, false );
             }
             else if ( !strcmp( tag, "iprp" ) )
             {
@@ -1451,12 +1549,12 @@ private:
             }
             else if ( !strcmp( tag, "PRVW" ) )
             {
-                DWORD unk = hs->GetDWORD( offset, FALSE );
-                WORD unkW = hs->GetWORD( offset, FALSE );
-                WORD width = hs->GetWORD( offset, FALSE );
-                WORD height = hs->GetWORD( offset, FALSE );
-                unkW = hs->GetWORD( offset, FALSE );
-                DWORD length = hs->GetDWORD( offset, FALSE );
+                DWORD unk = hs->GetDWORD( offset, false );
+                WORD unkW = hs->GetWORD( offset, false );
+                WORD width = hs->GetWORD( offset, false );
+                WORD height = hs->GetWORD( offset, false );
+                unkW = hs->GetWORD( offset, false );
+                DWORD length = hs->GetDWORD( offset, false );
     
                 // This should work per https://github.com/exiftool/canon_cr3, but it doesn't exist
     
@@ -1466,7 +1564,7 @@ private:
             else if ( !strcmp( tag, "mdat" ) ) // Canon .CR3 main data
             {
                 __int64 jpgOffset = hs->Offset() + offset;
-                DWORD head = hs->GetDWORD( offset, FALSE );
+                DWORD head = hs->GetDWORD( offset, false );
     
                 if ( ( 0xffd8ffdb == head ) && // looks like JPG
                      ( 0 != g_Canon_CR3_Embedded_JPG_Length ) )
@@ -1503,7 +1601,7 @@ private:
     
                 for ( int i = 0; i < 5; i++ )
                 {
-                    DWORD len = hs->GetDWORD( offset, FALSE );
+                    DWORD len = hs->GetDWORD( offset, false );
     
                     if ( ( 3 == i ) && ( 0 == g_Canon_CR3_Embedded_JPG_Length ) )
                         g_Canon_CR3_Embedded_JPG_Length = len;
@@ -1512,7 +1610,7 @@ private:
     
             box++;
             offset = boxOffset + boxLen;
-        } while ( TRUE );
+        } while ( true );
     
         //tracer.Trace( "falling out of EnumerateBoxes at depth %d\n", depth );
     } //EnumerateBoxes
@@ -1525,15 +1623,15 @@ private:
         EnumerateBoxes( &hs, 0 );
     } //EnumerateHeif
     
-    void EnumerateIFD0( int depth, __int64 IFDOffset, __int64 headerBase, BOOL littleEndian, WCHAR const * pwcExt )
+    void EnumerateIFD0( int depth, __int64 IFDOffset, __int64 headerBase, bool littleEndian, WCHAR const * pwcExt )
     {
         int currentIFD = 0;
         __int64 provisionalJPGOffset = 0;
         __int64 provisionalEmbeddedJPGOffset = 0;
-        BOOL likelyRAW = FALSE;
+        bool likelyRAW = false;
         int lastBitsPerSample = 0;
         vector<IFDHeader> aHeaders( MaxIFDHeaders );
-    
+
         while ( 0 != IFDOffset ) 
         {
             provisionalJPGOffset = 0;
@@ -1547,7 +1645,7 @@ private:
 
             if ( !GetIFDHeaders( IFDOffset + headerBase, aHeaders.data(), NumTags, littleEndian ) )
                 break;
-        
+
             for ( int i = 0; i < NumTags; i++ )
             {
                 IFDHeader & head = aHeaders[ i ];
@@ -1555,11 +1653,11 @@ private:
 
                 if ( ( !_wcsicmp( pwcExt, L".rw2" ) ) && ( ( head.id < 254 ) || ( head.id >= 280 && head.id <= 290 ) ) )
                 {
-                    PrintPanasonicIFD0Tag( depth, head.id, head.type, head.count, head.offset, headerBase, littleEndian, IFDOffset );
+                    GetPanasonicIFD0Tag( depth, head.id, head.type, head.count, head.offset, headerBase, littleEndian, IFDOffset );
                     continue;
                 }
     
-                //tracer.Trace( "ifd0 head.id %d\n", head.id );
+                //tracer.Trace( "ifd0 tag # %d, head.id %d\n", i, head.id );
     
                 if ( 254 == head.id && IsIntType( head.type ) )
                 {
@@ -1669,6 +1767,18 @@ private:
 
                     g_FocalLengthIn35mmFilm = head.offset;
                 }
+                else if ( 42037 == head.id && 2 == head.type )
+                {
+                    __int64 stringOffset = ( head.count <= 4 ) ? ( IFDOffset - 4 ) : head.offset;
+                    GetString( stringOffset + headerBase, g_acLensSerialNumber, _countof( g_acLensSerialNumber ), head.count );
+                    //tracer.Trace( "IFD0 Lens Serial Number: %s\n", g_acLensSerialNumber );
+                }
+                else if ( 50735 == head.id && 2 == head.type )
+                {
+                     __int64 stringOffset = ( head.count <= 4 ) ? ( IFDOffset - 4 ) : head.offset;
+                    GetString( stringOffset + headerBase, g_acSerialNumber, _countof( g_acSerialNumber ), head.count );
+                    //tracer.Trace( "IFD0 Body Serial Number: %s\n", g_acSerialNumber );
+                }
                 else if ( 50740 == head.id && IsIntType( head.type ) )
                 {
                     // Sony and Ricoh Makernotes (in addition to makernotes stored in Exif IFD)
@@ -1738,7 +1848,7 @@ private:
         {
             JpgRecord record;
             GetBytes( offset, &record, sizeof record );
-            record.FixEndian( FALSE );
+            record.FixEndian( false );
 
             if ( 0xff != record.marker )
                 return exifOffset;
@@ -1758,7 +1868,7 @@ private:
             }
             else if ( record.segment >= MARKER_SOF0 && record.segment <= MARKER_SOF15 )
             {
-                record.FixSOFEndian( FALSE );
+                record.FixSOFEndian( false );
 
                 if ( embedded )
                 {
@@ -1773,13 +1883,6 @@ private:
                     if ( record.height > g_ImageHeight )
                         g_ImageHeight = record.height;
                 }
-
-                // BUGMAGNET: ALERT
-                // Since these are the only two fields required from JPG files, break out
-                // of the loop after we get them. If any other data is required, remove
-                // this break!
-
-                break;
             }
             else if ( MARKER_SOS == record.segment )
             {
@@ -1794,6 +1897,7 @@ private:
                 if ( !stricmp( app1Header, "exif" ) )
                 {
                     // just return the exifoffset so it can be parsed later
+
                     exifOffset = offset + 8;
                 }
             }
@@ -1805,7 +1909,7 @@ private:
             // Luckily, the 0xc0 Start Of Frame 0 SOF0 segment generally comes early
     
             offset += ( record.length + 2 );
-        } while (TRUE);
+        } while (true);
     
         return exifOffset;
     } //ParseOldJpg
@@ -1830,9 +1934,9 @@ private:
     
         do
         {
-            g_pStream->Seek( offset );
+            bool seekOK = g_pStream->Seek( offset );
     
-            if ( g_pStream->AtEOF() )
+            if ( !seekOK || g_pStream->AtEOF() )
                 return;
 
             SLenType lenType;
@@ -1858,13 +1962,13 @@ private:
             {
                 if ( embedded )
                 {
-                    g_Embedded_Image_Width = GetDWORD( (__int64) offset + 8, FALSE );
-                    g_Embedded_Image_Height = GetDWORD( (__int64) offset + 12, FALSE );
+                    g_Embedded_Image_Width = GetDWORD( (__int64) offset + 8, false );
+                    g_Embedded_Image_Height = GetDWORD( (__int64) offset + 12, false );
                 }
                 else
                 {
-                    g_ImageWidth = GetDWORD( (__int64) offset + 8, FALSE );
-                    g_ImageHeight = GetDWORD( (__int64) offset + 12, FALSE );
+                    g_ImageWidth = GetDWORD( (__int64) offset + 8, false );
+                    g_ImageHeight = GetDWORD( (__int64) offset + 12, false );
                 }
 
                 // BUGMAGNET: ALERT
@@ -1876,7 +1980,7 @@ private:
             }
     
             offset += ( 12 + lenType.len );
-        } while( TRUE );
+        } while( true );
     } //ParsePNG
     
     const WCHAR * FindExtension( const WCHAR * pwcPath )
@@ -1901,10 +2005,13 @@ private:
         unique_ptr<CStream> stream( g_pStream );
     
         if ( !g_pStream->Ok() )
+        {
+            g_pStream = NULL;
             return;
-    
+        }
+
+        bool isOuterFileJPG = false;
         WCHAR const * pwcExt = FindExtension( pwc );
-    
         __int64 heifOffsetBase = 0;
     
         if ( !_wcsicmp( pwcExt, L".heic" ) ||          // Apple iOS photos
@@ -1915,12 +2022,22 @@ private:
             EnumerateHeif( g_pStream );
     
             if ( 0 == g_Heif_Exif_Offset )
+            {
+                g_pStream = NULL;
                 return;
+            }
     
-            DWORD o = GetDWORD( g_Heif_Exif_Offset, FALSE );
+            DWORD o = GetDWORD( g_Heif_Exif_Offset, false );
     
             heifOffsetBase = o + g_Heif_Exif_Offset + 4;
-            g_pStream->Seek( heifOffsetBase );
+            bool seekOK = g_pStream->Seek( heifOffsetBase );
+
+            if ( !seekOK )
+            {
+                tracer.Trace( "heif offset base looks wrong\n" );
+                g_pStream = NULL;
+                return;
+            }
         }
         else if ( !_wcsicmp( pwcExt, L".cr3" ) )        // Canon's newer RAW format
         {
@@ -1930,17 +2047,27 @@ private:
             EnumerateHeif( g_pStream );
     
             if ( 0 == g_Canon_CR3_Exif_IFD0 )
+            {
+                g_pStream = NULL;
                 return;
+            }
     
             heifOffsetBase = g_Canon_CR3_Exif_IFD0;
-            g_pStream->Seek( heifOffsetBase );
+            bool seekOK = g_pStream->Seek( heifOffsetBase );
+
+            if ( !seekOK )
+            {
+                tracer.Trace( "heif-CR3 offset base looks wrong\n" );
+                g_pStream = NULL;
+                return;
+            }
         }
     
         DWORD header;
         g_pStream->Read( &header, sizeof header );
     
         bool parsingEmbeddedImage = false;
-    
+
         if ( 0x43614c66 == header )
         {
             EnumerateFlac();
@@ -1956,6 +2083,7 @@ private:
             }
             else
             {
+                g_pStream = NULL;
                 return;
             }
         }
@@ -1970,32 +2098,42 @@ private:
         {
             // BMP: 0x4d42
     
+            g_pStream = NULL;
             return;
         }
     
-        BOOL littleEndian = true;
+        bool littleEndian = true;
         __int64 startingOffset = 4;
         __int64 headerBase = 0;
         __int64 exifHeaderOffset = 12;
     
         if ( 0x474e5089 == header ) // PNG
         {
-            DWORD nextFour = GetDWORD( 4, FALSE );
+            DWORD nextFour = GetDWORD( 4, false );
     
             if ( 0x0d0a1a0a != nextFour )
+            {
+                g_pStream = NULL;
                 return;
+            }
     
             ParsePNG();
+
+            g_pStream = NULL;
             return;
         }
         else if ( 0xd8ff == ( header & 0xffff ) ) 
         {
             // special handling for JPG files
-    
+
+            isOuterFileJPG = true;
             int exifMaybe = ParseOldJpg();
-    
+
             if ( 0 == exifMaybe )
+            {
+                g_pStream = NULL;
                 return;
+            }
     
             int saveMaybe = exifMaybe;
             exifMaybe += 5;  // Get past "Exif."
@@ -2027,17 +2165,23 @@ private:
             // But RAF files have an embedded JPG with full properties, so show those.
             // https://libopenraw.freedesktop.org/formats/raf/
     
-            DWORD jpgOffset = GetDWORD( 84, FALSE );
-            DWORD jpgLength = GetDWORD( 88, FALSE );
-            DWORD jpgSig = GetDWORD( jpgOffset, TRUE );
+            DWORD jpgOffset = GetDWORD( 84, false );
+            DWORD jpgLength = GetDWORD( 88, false );
+            DWORD jpgSig = GetDWORD( jpgOffset, true );
     
             if ( 0xd8ff != ( jpgSig & 0xffff ) )
+            {
+                g_pStream = NULL;
                 return;
+            }
     
-            DWORD exifSig = GetDWORD( jpgOffset + exifHeaderOffset, TRUE );
+            DWORD exifSig = GetDWORD( jpgOffset + exifHeaderOffset, true );
     
             if ( 0x002a4949 != exifSig )
+            {
+                g_pStream = NULL;
                 return;
+            }
     
             header = exifSig;
             headerBase = jpgOffset + exifHeaderOffset;
@@ -2096,7 +2240,10 @@ private:
             EnumerateGPSTags( 0, 8, g_Canon_CR3_Exif_GPS_IFD, ( 0x4949 == endian ) );
         }
 
-        if ( 0 != g_Embedded_Image_Offset && 0 != g_Embedded_Image_Length )
+        // If there is an embedded file, load and treat it as if it's the main image.
+        // Sometimes JPGs have embedded smaller JPGs. Ignore them.
+
+        if ( !isOuterFileJPG && 0 != g_Embedded_Image_Offset && 0 != g_Embedded_Image_Length )
         {
             if ( parsingEmbeddedImage )
             {
@@ -2118,12 +2265,14 @@ private:
                 else if ( IsPerhapsPNG( head ) )
                     ParsePNG( true );
                 else
-                    tracer.Trace( "skipping embedded image with unexpected header %#llx\n", head );
+                    tracer.Trace( "skipping embedded image with unexpected header %#llx in %ws\n", head, pwc );
 
                 //tracer.Trace( "embedded width %d, embedded height %d, full width %d, full height %d\n",
                 //              g_Embedded_Image_Width, g_Embedded_Image_Height, g_ImageWidth, g_ImageHeight );
             }
         }
+
+        g_pStream = NULL;
     } //EnumerateImageData
     
     const char * ExifExposureMode( DWORD x )
@@ -2164,6 +2313,7 @@ private:
     
     void InitializeGlobals()
     {
+        g_pStream = NULL;
         g_Heif_Exif_ItemID              = 0xffffffff;
         g_Heif_Exif_Offset              = 0;
         g_Heif_Exif_Length              = 0;
@@ -2206,8 +2356,10 @@ private:
         g_Latitude = InvalidCoordinate;
         g_acLensMake[ 0 ] = 0;
         g_acLensModel[ 0 ] = 0;
+        g_acLensSerialNumber[ 0 ] = 0;
         g_acMake[ 0 ] = 0;
         g_acModel[ 0 ] = 0;
+        g_acSerialNumber[ 0 ] = 0;
     } //InitializeGlobals
     
     void UpdateCache( const WCHAR * pwcPath )
@@ -2266,7 +2418,7 @@ private:
     
         if ( INVALID_HANDLE_VALUE != hFile )
             CloseHandle( hFile );
-    
+
         //tracer.Trace( "metadata cached: %d for file %ws\n", cached, pwcPath );
     } //UpdateCache
     
@@ -2333,7 +2485,7 @@ public:
         flBestGuess = 0.0;
         strcpy_s( pcModel, modelLen, g_acModel );
 
-        double cropGuess = factor.GetCropFactor( g_acModel );
+        double cropGuess = g_factor.GetCropFactor( g_acModel );
         double cropComputed = GetComputedCropFactor();
         bool validFL = validFLVal( g_FocalLengthNum ) && validFLVal( g_FocalLengthDen );
         bool validCropGuess = validFLVal( cropGuess );
@@ -2457,7 +2609,7 @@ public:
         // Try to find both the focal length and effective focal length (if it's different / not full frame)
     
         {
-            double cropGuess = factor.GetCropFactor( g_acModel );
+            double cropGuess = g_factor.GetCropFactor( g_acModel );
             double cropComputed = GetComputedCropFactor();
             bool validFL = validFLVal( g_FocalLengthNum ) && validFLVal( g_FocalLengthDen );
             bool validCropGuess = validFLVal( cropGuess );
@@ -2541,6 +2693,39 @@ public:
     
         return ( 0 != *pcMake || 0 != *pcModel );
     } //GetCameraInfo
+    
+    bool GetSerialNumbers( const WCHAR * pwcPath, char * pcMake, int makeLen, char * pcModel, int modelLen, char * pcSerialNumber, int serialNumberLen,
+                           char * pcLensMake, int lensMakeLen, char * pcLensModel, int lensModelLen, char * pcLensSerialNumber, int lensSerialNumberLen )
+    {
+        UpdateCache( pwcPath );
+    
+        *pcMake = 0;
+        *pcModel = 0;
+        *pcSerialNumber = 0;
+        *pcLensMake = 0;
+        *pcLensModel = 0;
+        *pcLensSerialNumber = 0;
+
+        if ( 0 != g_acMake[0] )
+            strcpy_s( pcMake, makeLen, g_acMake );
+    
+        if ( 0 != g_acModel[0] )
+            strcpy_s( pcModel, modelLen, g_acModel );
+    
+        if ( 0 != g_acSerialNumber[0] )
+            strcpy_s( pcSerialNumber, serialNumberLen, g_acSerialNumber );
+    
+        if ( 0 != g_acLensMake[0] )
+            strcpy_s( pcLensMake, lensMakeLen, g_acLensMake );
+    
+        if ( 0 != g_acLensModel[0] )
+            strcpy_s( pcLensModel, lensModelLen, g_acLensModel );
+    
+        if ( 0 != g_acLensSerialNumber[0] )
+            strcpy_s( pcLensSerialNumber, lensSerialNumberLen, g_acLensSerialNumber );
+    
+        return ( 0 != *pcSerialNumber || 0 != *pcLensSerialNumber );
+    } //GetSerialNumbers
     
     bool FindEmbeddedImage( const WCHAR * pwcPath, long long * pOffset, long long * pLength, int * orientationValue,
                             int * pWidth, int * pHeight, int * pFullWidth, int * pFullHeight )
@@ -2663,7 +2848,7 @@ public:
 
         LARGE_INTEGER li;
         li.QuadPart = g_Orientation_Offset;
-        BOOL ok = SetFilePointerEx( hFile, li, NULL, FILE_BEGIN );
+        bool ok = SetFilePointerEx( hFile, li, NULL, FILE_BEGIN );
 
         if ( ok )
         {
@@ -2719,5 +2904,9 @@ public:
     CImageData()
     {
         InitializeGlobals();
+    }
+
+    ~CImageData()
+    {
     }
 };

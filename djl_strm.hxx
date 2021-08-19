@@ -7,11 +7,11 @@
 class CStream
 {
     private:
-        bool handleOwned;
-        HANDLE hFile;
         __int64 length;
         __int64 offset;
         __int64 embedOffset;
+        HANDLE hFile;
+        bool handleOwned;
         bool seekCalled;
 
     public:
@@ -49,6 +49,12 @@ class CStream
 
         CStream( WCHAR const * pwcFile, __int64 embeddedOffset, __int64 embeddedLength )
         {
+            if ( embeddedOffset < 0 || embeddedLength < 0 )
+            {
+                embeddedOffset = 0;
+                embeddedLength = 0;
+            }
+
             embedOffset = embeddedOffset;
             length = embeddedLength;
             offset = 0;
@@ -58,6 +64,28 @@ class CStream
 
             if ( INVALID_HANDLE_VALUE == hFile )
                 length = 0;
+            else
+            {
+                LARGE_INTEGER liSize;
+                BOOL ok = GetFileSizeEx( hFile, &liSize );
+                if ( ok )
+                {
+                    if ( embedOffset > liSize.QuadPart )
+                    {
+                        embedOffset = 0;
+                        length = 0;
+                    }
+                    else
+                    {
+                        length = __min( liSize.QuadPart - embeddedOffset, length );
+                    }
+                }
+                else
+                {
+                    length = 0;
+                    embedOffset = 0;
+                }
+             }
         } //CStream
 
         ~CStream()
@@ -68,6 +96,9 @@ class CStream
 
         ULONG Read( void *pv, ULONG cb )
         {
+            if ( 0 == length )
+                return 0;
+
             if ( seekCalled )
             {
                 LARGE_INTEGER li;
@@ -77,7 +108,12 @@ class CStream
             }
 
             if ( ( offset + cb ) > length )
-                cb = (ULONG) ( length - offset );
+            {
+                if ( length > offset )
+                    cb = __min( cb, (ULONG) ( length - offset ) );
+                else
+                    cb = 0;
+            }
 
             DWORD dwRead = 0;
             BOOL ok = ReadFile( hFile, pv, cb, &dwRead, NULL );
@@ -90,13 +126,18 @@ class CStream
             return cb;
         } //Read
 
-        void Seek( __int64 location )
+        bool Seek( __int64 location )
         {
+            if ( location < 0 || location > length )
+                return false;
+
             if ( offset != location )
             {
                 offset = location;
                 seekCalled = true;
             }
+
+            return true;
         }
 
         bool Ok() { return ( INVALID_HANDLE_VALUE != hFile ); }

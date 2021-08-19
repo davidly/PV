@@ -49,7 +49,7 @@ class CIStream : public IStream
                 }
                 else
                 {
-                    delete pbytes;
+                    delete [] pbytes;
                     pbytes = 0;
                 }
                 
@@ -87,7 +87,7 @@ class CIStream : public IStream
                     }
                     else
                     {
-                        delete pbytes;
+                        delete [] pbytes;
                         pbytes = 0;
                     }
                 }
@@ -98,7 +98,7 @@ class CIStream : public IStream
 
         ~CIStream()
         {
-            delete pbytes;
+            delete [] pbytes;
         }
 
         bool Ok() { return ( 0 != pbytes ); }
