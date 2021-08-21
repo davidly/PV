@@ -980,11 +980,11 @@ extern "C" INT_PTR WINAPI HelpDialogProc( HWND hdlg, UINT message, WPARAM wParam
 {
     static const WCHAR * helpText = L"usage:\n"
                                      "\tpv photo [-s] [-t]\n"
-                                     "\tpv folder [-s] [-t]\n"
+                                     "\tpv [folder] [-s] [-t]\n"
                                      "\n"
                                      "arguments:\n"
                                      "\tphoto\t\tpath of image to display\n"
-                                     "\tfolder\t\tpath of folder with images\n"
+                                     "\tfolder\t\tpath of folder with images (default is current path)\n"
                                      "\t-s\t\tstart slideshow\n"
                                      "\t-t\t\tenable debug tracing to %temp%\\tracer.txt\n"
                                      "\n"
@@ -995,7 +995,7 @@ extern "C" INT_PTR WINAPI HelpDialogProc( HWND hdlg, UINT message, WPARAM wParam
                                      "\n"
                                      "keyboard:\n"
                                      "\tctrl+c\t\tcopy image path and bitmap to the clipboard\n"
-                                     "\td\t\tdelete the current file\n"
+                                     "\tctrl+d\t\tdelete the current file\n"
                                      "\ti\t\tshow or hide image EXIF information\n"
                                      "\tl\t\trotate image left\n"
                                      "\tm\t\tshow GPS coordinates (if any) in Google Maps\n"
@@ -1228,6 +1228,47 @@ void GetCurrentDesktopRect( HWND hwnd, RECT * pRectDesktop )
     EnumDisplayMonitors( NULL, &rcWin, EnumerateMonitors, (LPARAM) pRectDesktop );
 } //GetCurrentDesktopRect
 
+void DeleteCommand( HWND hwnd )
+{
+    if ( 0 != g_pImageArray->Count() )
+    {
+        // the file is being held open and not shared for delete by WIC -- close it.
+
+        g_BitmapSource.Reset();
+        g_D2DBitmap.Reset();
+
+        BOOL deleteWorked = DeleteFile( g_pImageArray->Get( g_currentBitmapIndex ) );
+
+        if ( deleteWorked )
+        {
+            g_pImageArray->Delete( g_currentBitmapIndex );
+
+            if ( g_currentBitmapIndex >= g_pImageArray->Count() )
+                g_currentBitmapIndex = 0;
+        }
+        else
+        {
+            DWORD err = GetLastError();
+            unique_ptr<WCHAR> deleteFailed( new WCHAR[ 100 ] );
+            int ret = LoadStringW( NULL, ID_PV_STRING_DELETE_FAILED, deleteFailed.get(), 100 );
+
+            if ( 0 != ret )
+            {
+                static WCHAR awcBuffer[ 100 ];
+                int len = swprintf_s( awcBuffer, _countof( awcBuffer ), deleteFailed.get(), err );
+
+                if ( -1 != len )
+                    MessageBoxEx( hwnd, awcBuffer, NULL, MB_OK, 0 );
+            }
+        }
+
+        // load the current file
+
+        LoadCurrentFileUsingD2D( hwnd );
+        InvalidateRect( hwnd, NULL, TRUE );
+    }
+} //DeleteCommand
+
 LRESULT CALLBACK WindowProc( HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam )
 {
     const int TIMER_SLIDESHOW_ID = 1;
@@ -1264,7 +1305,7 @@ LRESULT CALLBACK WindowProc( HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam 
             if ( ID_PV_COPY == wParam )
                 CopyCommand( hwnd );
             else if ( ID_PV_DELETE == wParam )
-                SendMessage( hwnd, WM_CHAR, 'd', 0 );
+                DeleteCommand( hwnd );
             else if ( ID_PV_SLIDESHOW == wParam )
                 SendMessage( hwnd, WM_CHAR, 's', 0 );
             else if ( ID_PV_INFORMATION == wParam )
@@ -1408,45 +1449,6 @@ LRESULT CALLBACK WindowProc( HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam 
         {
             if ( 'q' == wParam || 0x1b == wParam ) // q or ESC
                 DestroyWindow( hwnd );
-            else if ( 'd' == wParam ) // Delete
-            {
-                if ( 0 != g_pImageArray->Count() )
-                {
-                    // the file is being held open and not shared for delete by WIC -- close it.
-        
-                    g_BitmapSource.Reset();
-                    g_D2DBitmap.Reset();
-    
-                    BOOL deleteWorked = DeleteFile( g_pImageArray->Get( g_currentBitmapIndex ) );
-
-                    if ( deleteWorked )
-                    {
-                        g_pImageArray->Delete( g_currentBitmapIndex );
-    
-                        if ( g_currentBitmapIndex >= g_pImageArray->Count() )
-                            g_currentBitmapIndex = 0;
-                    }
-                    else
-                    {
-                        DWORD err = GetLastError();
-                        unique_ptr<WCHAR> deleteFailed( new WCHAR[ 100 ] );
-                        int ret = LoadStringW( NULL, ID_PV_STRING_DELETE_FAILED, deleteFailed.get(), 100 );
-
-                        if ( 0 != ret )
-                        {
-                            int len = swprintf_s( awcBuffer, _countof( awcBuffer ), deleteFailed.get(), err );
-
-                            if ( -1 != len )
-                                MessageBoxEx( hwnd, awcBuffer, NULL, MB_OK, 0 );
-                        }
-                    }
-    
-                    // load the current file
-        
-                    LoadCurrentFileUsingD2D( hwnd );
-                    InvalidateRect( hwnd, NULL, TRUE );
-                }
-            }
             else if ( 'i' == wParam || ' ' == wParam )
             {
                 g_showMetadata = !g_showMetadata;
@@ -1626,6 +1628,10 @@ LRESULT CALLBACK WindowProc( HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam 
             if ( ( 0x43 == wParam ) && ( GetKeyState( VK_CONTROL ) & 0x8000 ) ) // ^c for copy
             {
                 CopyCommand( hwnd );
+            }
+            else if ( ( 0x44 == wParam ) && ( GetKeyState( VK_CONTROL ) & 0x8000 ) ) // ^d for delete
+            {
+                DeleteCommand( hwnd );
             }
             else if ( VK_F1 == wParam )
             {

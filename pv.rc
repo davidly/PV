@@ -18,7 +18,7 @@ BEGIN
     BEGIN
         MENUITEM "&Copy\tCtrl+c",                ID_PV_COPY
         MENUITEM SEPARATOR
-        MENUITEM "&Delete\td",                   ID_PV_DELETE
+        MENUITEM "&Delete\tCtrl+d",              ID_PV_DELETE
         MENUITEM SEPARATOR
         MENUITEM "&Next\tn",                     ID_PV_NEXT
         MENUITEM "&Previous\tp",                 ID_PV_PREVIOUS
