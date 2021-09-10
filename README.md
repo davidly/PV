@@ -17,9 +17,9 @@ using WIC to actually rotate the pixels for file formats that don't support EXIF
 (PNG, ICO, BMP, etc.). PV only fails to rotate an image when it's a RAW format that
 hasn't already allocated EXIF Orientation (e.g. Nikon D100).
 
-PV can optionally be built to use LibRaw, a RAW processing library. PV can be
-configured to always use LibRaw for RAW files, use LibRaw for RAW files with
-tiny embedded JPGs, or only use LibRaw for RAW files with no embedded JPG.
+PV can optionally be built to use LibRaw, a RAW processing library. PV has a context
+menu to always use LibRaw for RAW files, use LibRaw for RAW files with tiny embedded
+JPGs, or only use LibRaw for RAW files with no embedded JPG.
 
 LibRaw can be found here: https://github.com/LibRaw/LibRaw
 
