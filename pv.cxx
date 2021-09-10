@@ -146,6 +146,7 @@ const WCHAR * imageExtensions[] =
     L"jfif",
     L"jpeg",
     L"jpg",
+    L"mp3",
     L"nef",
     L"orf",
     L"png",
@@ -174,7 +175,7 @@ const WCHAR * nonEmbedExtensions[] =
 
 // Images that quite likely (though not for sure) have good quality embedded JPGs
 // Images from older cameras (e.g. Nikon D100) and more recent cameras (Leica M240) have very small embedded JPGs.
-// Flac files aren't RAW at all, but they can have embedded images.
+// Flac and MP3 files aren't RAW at all, but they can have embedded images.
 
 const WCHAR * RawFileExtensions[] =
 {
@@ -184,6 +185,7 @@ const WCHAR * RawFileExtensions[] =
     L"cr3",
     L"dng",
     L"flac",
+    L"mp3",
     L"nef",
     L"orf",
     L"raf",
@@ -231,12 +233,12 @@ bool IsInExtensionList( const WCHAR * pwcPath, WCHAR ** pExtensions, int cExtens
     return false;
 } //IsInExtensionList
 
-bool IsFLAC( const WCHAR * pwcPath )
+bool IsFlacOrMP3( const WCHAR * pwcPath )
 {
     size_t len = wcslen( pwcPath );
 
-    return ( len >= 6 && !_wcsicmp( pwcPath + len - 5, L".flac" ) );
-} //IsFLAC
+    return ( len >= 6 && ( !_wcsicmp( pwcPath + len - 5, L".flac" ) || !_wcsicmp( pwcPath + len - 4, L".mp3" ) ) );
+} //IsFlacOrMP3
 
 void LoadRegistryParams()
 {
@@ -699,7 +701,8 @@ bool LoadCurrentFileUsingD2D( HWND hwnd )
     if ( isRaw && !foundEmbedding )
         useLibRaw = true;
 
-    if ( IsFLAC( pwcFile ) )
+    bool isFlacOrMP3 = IsFlacOrMP3( pwcFile );
+    if ( isFlacOrMP3 )
         useLibRaw = false;
 
 #ifndef PV_USE_LIBRAW
@@ -735,7 +738,7 @@ bool LoadCurrentFileUsingD2D( HWND hwnd )
         stream.Reset();
         //tracer.Trace( "  loaded embedded image for %ws\n", pwcFile );
     }
-    else
+    else if ( !isFlacOrMP3 )
     {
         HRESULT hr = LoadCurrentFileD2D( hwnd, pwcFile, NULL, &availableWidth, &availableHeight, orientationValue, useLibRaw );
 
@@ -746,6 +749,11 @@ bool LoadCurrentFileUsingD2D( HWND hwnd )
         }
 
         //tracer.Trace( "  no embedded image, so loaded via WIC: %ws\n", pwcFile );
+    }
+    else
+    {
+        //tracer.Trace( "  flac or mp3 has no embedded image\n" );
+        return false;
     }
 
     high_resolution_clock::time_point tLoadB = high_resolution_clock::now();
@@ -1013,10 +1021,11 @@ extern "C" INT_PTR WINAPI HelpDialogProc( HWND hdlg, UINT message, WPARAM wParam
                                      "\t- WIC leaks handles for .heic photos.\n"
                                      "\t- WIC crashes for DNGs created by Lightroom's \"enhance.\"\n"
                                      "\t- Tested with 3fr arw bmp cr2 cr3 dng flac gif heic hif ico\n"
-                                     "\t      jfif jpeg jpg nef orf png raf rw2 tif tiff.\n"
+                                     "\t      jfif jpeg jpg mp3 nef orf png raf rw2 tif tiff.\n"
                                      "\t- Tested with RAW from Apple Canon Fujifilm Hasselblad Leica\n"
                                      "\t      Nikon Olympus Panasonic Pentax Ricoh Sigma Sony.\n"
                                      "\t- Rotate tries to update Exif Orientation, but may re-encode the file\n";
+                                     "\t- D2D fails to load images longer than 16384 in a dimension\n";
 
 
     switch( message )
@@ -1633,6 +1642,10 @@ LRESULT CALLBACK WindowProc( HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam 
             {
                 DeleteCommand( hwnd );
             }
+            else if ( VK_DELETE == wParam )
+            {
+                DeleteCommand( hwnd );
+            }
             else if ( VK_F1 == wParam )
             {
                 HWND helpDialog = CreateDialog( NULL, MAKEINTRESOURCE( ID_PV_HELP_DIALOG ), hwnd, HelpDialogProc );
@@ -1726,6 +1739,8 @@ int WINAPI wWinMain( HINSTANCE hInstance, HINSTANCE, PWSTR pCmdLine, int nCmdSho
     static WCHAR awcInput[ MAX_PATH ] = { 0 };
     static WCHAR awcStartingPhoto[ MAX_PATH + 2 ] = { 0 };
     static WCHAR awcPos[ 100 ];
+    static WCHAR awcExtension[ 100 ];
+    awcExtension[0] = 0;
 
     SetProcessDpiAwarenessContext( DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 );
 
@@ -1752,6 +1767,11 @@ int WINAPI wWinMain( HINSTANCE hInstance, HINSTANCE, PWSTR pCmdLine, int nCmdSho
                    enableTracer = true;
                else if ( 's' == a1 )
                    startSlideshow = true;
+               else if ( 'e' == a1 )
+               {
+                   if ( ':' == pwcArg[2] && ( wcslen( pwcArg + 3 ) < ( _countof( awcExtension ) - 1 ) ) )
+                       wcscpy( awcExtension, pwcArg + 3 );
+               }
             }
             else
             {
@@ -1854,7 +1874,7 @@ int WINAPI wWinMain( HINSTANCE hInstance, HINSTANCE, PWSTR pCmdLine, int nCmdSho
     if ( FAILED( hr ) )
         return 0;
 
-    hr = CoCreateInstance( CLSID_WICImagingFactory, NULL, CLSCTX_INPROC_SERVER, __uuidof( IWICImagingFactory ), reinterpret_cast<void **>  ( g_IWICFactory.GetAddressOf() ) );
+    hr = CoCreateInstance( CLSID_WICImagingFactory, NULL, CLSCTX_INPROC_SERVER, __uuidof( IWICImagingFactory ), reinterpret_cast<void **> ( g_IWICFactory.GetAddressOf() ) );
 
     if ( FAILED( hr ) )
     {
@@ -1900,7 +1920,17 @@ int WINAPI wWinMain( HINSTANCE hInstance, HINSTANCE, PWSTR pCmdLine, int nCmdSho
 
     high_resolution_clock::time_point tA = high_resolution_clock::now();
 
-    CEnumFolder enumFolder( true, g_pImageArray, (WCHAR **) imageExtensions, _countof( imageExtensions ) );
+    WCHAR ** pwcExtensions = (WCHAR **) imageExtensions;
+    int cExtensions = _countof( imageExtensions );
+    WCHAR * pwcExtension = awcExtension;
+
+    if ( 0 != awcExtension[0] )
+    {
+        pwcExtensions = &pwcExtension;
+        cExtensions = 1;
+    }
+
+    CEnumFolder enumFolder( true, g_pImageArray, pwcExtensions, cExtensions );
     enumFolder.Enumerate( awcPhotoPath, L"*" );
     SortImages();
 

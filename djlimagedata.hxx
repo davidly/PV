@@ -120,7 +120,8 @@ private:
     CCropFactor g_factor;
     CStream * g_pStream = NULL;
     const double InvalidCoordinate = 1000.0;
-    static const WORD MaxIFDHeaders = 200; // assume anything more than this is a corrupt or badly parsed file
+    static const WORD MaxIFDHeaders = 200; // assume anything more than this is a corrupt or badly parsed file.
+                                           // panasonic makernotes sometimes have 133 entries.
     
     WCHAR g_awcPath[ MAX_PATH + 1 ];
     FILETIME g_ftWrite;
@@ -340,6 +341,7 @@ private:
     {
         return ( ( 0xd8ff == ( x & 0xffff ) ) ||    // jpg
                  ( 0x5089 == ( x & 0xffff ) ) ||    // png
+                 ( 0x4d42 == ( x & 0xffff ) ) ||    // bmp
                  ( 7079746620000000 == x ) );       // hif, heic, etc.
     } //IsPerhapsAnImageHeader
 
@@ -605,6 +607,69 @@ private:
         }
     } //EnumerateFujifilmMakernotes
 
+    static void DetectGarbage( char * pc )
+    {
+        char * pcIn = pc;
+        while ( 0 != *pcIn )
+        {
+            if ( *pcIn < ' ' )
+            {
+                *pc = 0;
+                return;
+            }
+            pcIn++;
+        }
+    } //DetectGarbage
+
+    void EnumeratePanasonicMakernotes( int depth, __int64 IFDOffset, __int64 headerBase, bool littleEndian )
+    {
+        vector<IFDHeader> aHeaders( MaxIFDHeaders );
+    
+        while ( 0 != IFDOffset ) 
+        {
+            WORD NumTags = GetWORD( IFDOffset + headerBase, littleEndian );
+            IFDOffset += 2;
+    
+            if ( NumTags > MaxIFDHeaders )
+                break;
+        
+            if ( !GetIFDHeaders( IFDOffset + headerBase, aHeaders.data(), NumTags, littleEndian ) )
+                break;
+    
+            // Note: Photomatix Pro 5.0.1 (64-bit) generates .tif files where these 3 strings are garbage.
+            // Detect this case and make the strings empty.
+
+            for ( int i = 0; i < NumTags; i++ )
+            {
+                IFDHeader & head = aHeaders[ i ];
+                IFDOffset += sizeof IFDHeader;
+                
+                if ( 37 == head.id && 7 == head.type && 16 == head.count )
+                {
+                    // treat this as if it's a string even though it's a type 7 
+
+                    ULONG stringOffset = ( head.count <= 4 ) ? ( IFDOffset - 4 ) : head.offset;
+                    GetString( stringOffset + headerBase, g_acSerialNumber, _countof( g_acSerialNumber ), head.count );
+                    DetectGarbage( g_acSerialNumber );
+                }
+                else if ( 81 == head.id && 2 == head.type )
+                {
+                    ULONG stringOffset = ( head.count <= 4 ) ? ( IFDOffset - 4 ) : head.offset;
+                    GetString( stringOffset + headerBase, g_acLensModel, _countof( g_acLensModel ), head.count );
+                    DetectGarbage( g_acLensModel );
+                }
+                else if ( 82 == head.id && 2 == head.type )
+                {
+                    ULONG stringOffset = ( head.count <= 4 ) ? ( IFDOffset - 4 ) : head.offset;
+                    GetString( stringOffset + headerBase, g_acLensSerialNumber, _countof( g_acLensSerialNumber ), head.count );
+                    DetectGarbage( g_acLensSerialNumber );
+                }
+            }
+    
+            IFDOffset = GetDWORD( IFDOffset + headerBase, littleEndian );
+        }
+    } //EnumeratePanasonicMakernotes
+
     void EnumerateMakernotes( int depth, __int64 IFDOffset, __int64 headerBase, bool littleEndian )
     {
         __int64 originalIFDOffset = IFDOffset;
@@ -720,6 +785,9 @@ private:
         {
             IFDOffset += 12;
             isPanasonic = true;
+
+            EnumeratePanasonicMakernotes( depth, IFDOffset, headerBase, littleEndian );
+            return;
         }
         else if ( !strcmp( g_acMake, "Apple" ) )
         {
@@ -1983,6 +2051,313 @@ private:
         } while( true );
     } //ParsePNG
     
+    bool isMP3Frame( char const * frameID, char const * name, const char * name2 = 0 )
+    {
+        if ( * (DWORD *) frameID == * (DWORD *) name )
+            return true;
+    
+        if ( NULL == name2 )
+            return false;
+    
+        return ( * (DWORD *) frameID == * (DWORD *) name2 );
+    } //isMP3Frame
+    
+    bool isValidMP3Frame( char const * pc )
+    {
+        for ( int i = 0; i < 4; i++ )
+        {
+            char c = pc[i];
+    
+            if ( 0 == c )
+            {
+                if ( 0 == i )
+                    return false;
+                else
+                    continue;
+            }
+    
+            if ( ( c > 'Z' || c < 'A' ) && ( c > '9' || c < '0' ) )
+                return false;
+        }
+    
+        return true;
+    } //isValidMP3Frame
+
+    void ParseMP3()
+    {
+        #pragma pack(push, 1)
+    
+        __int64 len = g_pStream->Length();
+        if ( len < 128 )
+            return;
+    
+        struct ID3v2Header
+        {
+            char id[ 3 ];
+            byte ver[ 2 ];
+            byte flags;
+            DWORD size;
+        };
+    
+        ID3v2Header start;
+        memset( &start, 0, sizeof start );
+        GetBytes( 0, &start, sizeof start );
+        start.size = _byteswap_ulong( start.size );
+        start.size = ( ( start.size & 0x7f000000 ) >> 3 ) | ( ( start.size & 0x7f0000 ) >> 2 ) | ( ( start.size & 0x7f00 ) >> 1 ) | ( start.size & 0x7f );
+    
+        __int64 firstFrameOffset = sizeof start;
+    
+        if ( 'I' != start.id[0] || 'D' != start.id[1] || '3' != start.id[2] )
+        {
+            tracer.Trace( "not an mp3 file that can hold an image (there is no ID3 header)\n" );
+            return;
+        }
+
+        __int64 frameOffset = firstFrameOffset;
+    
+        struct ID3v23FrameHeader
+        {
+            char id[4];
+            DWORD size;
+            WORD flags;
+        };
+    
+        struct ID3v22FrameHeader
+        {
+            char id[3];
+            byte size[3];
+        };
+    
+        while ( frameOffset < ( start.size + firstFrameOffset ) )
+        {
+            ID3v23FrameHeader frameHeader;
+            memset( &frameHeader, 0, sizeof frameHeader );
+            int frameHeaderSize = sizeof frameHeader;
+    
+            if ( 2 == start.ver[0] )
+            {
+                ID3v22FrameHeader frame2;
+                memset( &frame2, 0, sizeof frame2 );
+                GetBytes( frameOffset, &frame2, sizeof frame2 );
+    
+                frameHeader.id[0] = frame2.id[0];
+                frameHeader.id[1] = frame2.id[1];
+                frameHeader.id[2] = frame2.id[2];
+                frameHeader.id[3] = 0;
+    
+                frameHeader.size = frame2.size[2] | ( frame2.size[1] << 8 ) | ( frame2.size[0] << 16 );
+                frameHeader.flags = 0;
+    
+                frameHeaderSize = sizeof frame2;
+            }
+            else if ( start.ver[0] >= 3 )
+            {
+                GetBytes( frameOffset, &frameHeader, sizeof frameHeader );
+                frameHeader.size = _byteswap_ulong( frameHeader.size );
+            }
+            else
+            {
+                tracer.Trace( "unrecognized or invalid MP3 ID3v2 header version %d\n", 0xff & start.ver[0] );
+                break;
+            }
+    
+            if ( 0 == frameHeader.size )
+                break;
+    
+            if ( frameHeader.size > 1024 * 1024 * 100 )
+            {
+                // The largest I've seen is Jonathan Coulton 29MB. It's possible we'll not load valid images
+                // Malformed files can be gigabytes
+
+                tracer.Trace( "invalid frame size is too large: %u == %#x\n", frameHeader.size, frameHeader.size );
+                break;
+            }
+
+            if ( !isValidMP3Frame( frameHeader.id ) )
+            {
+                tracer.Trace( "invalid frame id %c%c%c%c == %#x %#x %#x %#x\n", frameHeader.id[0], frameHeader.id[1], frameHeader.id[2], frameHeader.id[3],
+                              0xff & frameHeader.id[0], 0xff & frameHeader.id[1], 0xff & frameHeader.id[2], 0xff & frameHeader.id[3] );
+                break;
+            }
+    
+            if ( isMP3Frame( frameHeader.id, "APIC", "PIC" ) )
+            {
+                // Embedded image (or a link to an image)
+                // byte:                           encoding
+                // null-terminated ascii:          mime type. iTunes writes JPG or PNG with no null-termination
+                // byte:                           picture type
+                // null-terminated encoded string: description
+                // byte array:                     the image
+                // 
+
+                int o = frameOffset + frameHeaderSize;
+                int oFrameData = o;
+                byte encoding = GetBYTE( o++ );
+    
+                if ( 0 != encoding && 1 != encoding && 3 != encoding )
+                {
+                    // 2 == UTF-16 isn't handled because I can't find a file like that to test
+    
+                    tracer.Trace( "invalid encoding for image text %d\n", 0xff & encoding );
+                    return;
+                }
+    
+                // mimetype encoding is always ascii
+
+                char acMimeType[ 100 ];
+                int i = 0;
+
+                do
+                {
+                    if ( i >= ( _countof( acMimeType ) - 1 ) )
+                    {
+                        tracer.Trace( "invalid mime type; it may not be null-terminated\n" );
+                        return;
+                    }
+
+                    char c = GetBYTE( o++ );
+                    acMimeType[ i++ ] = c;
+                    if ( 0 == c )
+                        break;
+                } while ( true );
+
+                acMimeType[i] = 0;
+    
+                // iTunes writes the mimetype as "JPG" or "PNG" with no null-termination sometimes.
+                // Hunt for the image start then backup o so it points at the picture type.
+
+                bool isJPG = !strcmp( acMimeType, "JPG" );
+                bool isPNG = !strcmp( acMimeType, "PNG" );
+    
+                if ( isJPG || isPNG )
+                {
+                    int to = o;
+    
+                    for ( int z = 0; z < 20; z++ )
+                    {
+                        WORD w = GetWORD( to + z, true );
+    
+                        if ( ( ( 0xd8ff == w ) && isJPG ) || ( ( 0x5089 == w ) && isPNG ) )
+                        {
+                            o = to + z - 2;
+                            break;
+                        }
+                    }
+                }
+
+                bool knownMimeType = ( !strcmp( acMimeType, "JPG" ) ||
+                                       !strcmp( acMimeType, "PNG" ) ||
+                                       !strcmp( acMimeType, "image/jpg" ) ||   // lots of files have this non-standard mimetype
+                                       !strcmp( acMimeType, "image/jpeg" ) ||
+                                       !strcmp( acMimeType, "image/png" ) ||
+                                       !strcmp( acMimeType, "image/bmp" ) );
+
+               if ( !knownMimeType )
+               {
+                   tracer.Trace( "invalid or unknown mimetype: %s\n", acMimeType );
+                   return;
+               }
+
+                byte pictureType = GetBYTE( o++ );
+    
+                i = 0;
+                bool foundEndOfString = false;
+    
+                if ( 0 == encoding || 3 == encoding )
+                {
+                    do
+                    {
+                        WCHAR wc = GetBYTE( o++ );
+    
+                        if ( i >= 1000 )
+                            break;
+
+                        if ( 0 == wc )
+                        {
+                            foundEndOfString = true;
+                            break;
+                        }
+                    } while ( true );
+                }
+                else if ( 1 == encoding )
+                {
+                    do
+                    {
+                        WCHAR wc = GetWORD( o, true );
+                        o += 2;
+    
+                        if ( i >= 1000 )
+                            break;
+
+                        if ( 0 == wc )
+                        {
+                            foundEndOfString = true;
+                            break;
+                        }
+                    } while( true );
+                }
+
+                if ( !foundEndOfString )
+                {
+                    tracer.Trace( "invalid description string for picture\n" );
+                    break;
+                }
+    
+                if ( o < ( oFrameData + frameHeader.size ) )
+                {
+                    int imageSize = frameHeader.size - ( o - oFrameData );
+                    //tracer.Trace( "  image size:        %d and offset %d\n", imageSize, o );
+    
+                    // Sometimes there are multiple embedded images. Use the first with a reasonable size.
+    
+                    if ( 0 == g_Embedded_Image_Offset && 0 == g_Embedded_Image_Length )
+                    {
+                        if ( imageSize > 1000 )
+                        {
+                            bool isAnImage = IsPerhapsAnImage( o, 0 );
+    
+                            if ( isAnImage )
+                            {
+                                g_Embedded_Image_Offset = o;
+                                g_Embedded_Image_Length = imageSize;
+                            }
+                            else
+                                tracer.Trace( "invalid image header: apparently not an image in the MP3 picture field\n" );
+                        }
+                        else
+                            tracer.Trace( "ignoring an image because it's too small: %d bytes\n", imageSize );
+                    }
+                    else
+                        tracer.Trace( "ignoring an image because we already have one\n" );
+                }
+                else
+                    tracer.Trace( "invalid image offset %d is beyond size of the frame %d. strings inside malformed?\n", o, frameHeader.size );
+            }
+            else
+            {
+                //tracer.Trace( "skipped frame id %c%c%c%c == %#x %#x %#x %#x\n", frameHeader.id[0], frameHeader.id[1], frameHeader.id[2], frameHeader.id[3],
+                //              0xff & frameHeader.id[0], 0xff & frameHeader.id[1], 0xff & frameHeader.id[2], 0xff & frameHeader.id[3] );
+            }
+    
+            frameOffset += ( frameHeaderSize + frameHeader.size );
+    
+            if ( frameOffset >= g_pStream->Length() )
+            {
+                tracer.Trace( "invalid frame offset is beyond the end of the file %#I64x\n", frameOffset );
+                break;
+            }
+    
+            // the >= case will be caught in the while loop above; no need to break
+
+            if ( frameOffset > ( start.size + firstFrameOffset ) )
+            {
+                tracer.Trace( "invalid frame offset %I64d is beyond the metadata size in the header + firstFrame %d\n", frameOffset, start.size + firstFrameOffset );
+            }
+        }
+    
+        #pragma pack(pop)
+    } //ParseMP3
+
     const WCHAR * FindExtension( const WCHAR * pwcPath )
     {
         size_t len = wcslen( pwcPath );
@@ -2087,14 +2462,32 @@ private:
                 return;
             }
         }
+        else if ( 0x03334449 == header || 0x02334449 == header || 0x04334449 == header || 0x90fbff == ( header & 0xffffff ) )
+        {
+            ParseMP3();
     
-        if ( ( 0xd8ff     != ( header & 0xffff ) ) && // JPG
-             ( 0x002a4949 != header ) &&              // CR2 canon and standard TIF and DNG
-             ( 0x2a004d4d != header ) &&              // NEF nikon (big endian!)
-             ( 0x4f524949 != header ) &&              // ORF olympus
-             ( 0x00554949 != header ) &&              // RW2 panasonic
-             ( 0x494a5546 != header ) &&              // RAF fujifilm
-             ( 0x474e5089 != header ) )               // PNG
+            if ( 0 != g_Embedded_Image_Offset && 0 != g_Embedded_Image_Length )
+            {
+                CStream * embeddedImage = new CStream( pwc, g_Embedded_Image_Offset, g_Embedded_Image_Length );
+    
+                embeddedImage->Read( &header, sizeof header );
+    
+                stream.reset( embeddedImage );
+                g_pStream = embeddedImage;
+            }
+            else
+            {
+                return;
+            }
+        }
+    
+        if ( ( 0xd8ff     != ( header & 0xffff ) ) &&   // JPG
+             ( 0x002a4949 != header ) &&                // CR2 canon and standard TIF and DNG
+             ( 0x2a004d4d != header ) &&                // NEF nikon (big endian!)
+             ( 0x4f524949 != header ) &&                // ORF olympus
+             ( 0x00554949 != header ) &&                // RW2 panasonic
+             ( 0x494a5546 != header ) &&                // RAF fujifilm
+             ( 0x474e5089 != header ) )                 // PNG
         {
             // BMP: 0x4d42
     
@@ -2219,6 +2612,50 @@ private:
     
         EnumerateIFD0( 0, IFDOffset, headerBase, littleEndian, pwcExt );
     
+        if ( ( 0 != g_Embedded_Image_Offset ) && ( 0 != g_Embedded_Image_Length ) && !wcsicmp( pwcExt, L".rw2" )  )
+        {
+            // Panasonic raw files sometimes have embedded JPGs with metadata not in the actual RW2 file.
+            // Specifically, Serial Number, Lens Model, and Lens Serial Number can only be retrieved in this way.
+    
+            g_pStream = new CStream( pwc, g_Embedded_Image_Offset, g_Embedded_Image_Length );
+            stream.reset( g_pStream );
+    
+            if ( !g_pStream->Ok() )
+                return;
+    
+            int exifMaybe = ParseOldJpg( true );
+            if ( 0 != exifMaybe )
+            {
+                int saveMaybe = exifMaybe;
+                exifMaybe += 5;  // Get past "Exif."
+                DWORD maybe = GetDWORD( exifMaybe, littleEndian );
+    
+                if ( ( 0x002a4949 != maybe ) && ( 0x2a004d4d != maybe ) )
+                {
+                    exifMaybe = 12; // It's just very common
+                    maybe = GetDWORD( exifMaybe, littleEndian );
+                }
+    
+                if ( ( 0x002a4949 != maybe ) && ( 0x2a004d4d != maybe ) )
+                {
+                    exifMaybe = saveMaybe + 2; // JFIF files are like this sometimes
+                    maybe = GetDWORD( exifMaybe, littleEndian );
+                }
+    
+                if ( ( 0x002a4949 == maybe ) || ( 0x2a004d4d == maybe ) )
+                {
+                    exifHeaderOffset = exifMaybe;
+                    headerBase = exifHeaderOffset;
+                    startingOffset = exifHeaderOffset + 4;
+                    header = maybe;
+                    littleEndian = ( 0x4949 == ( header & 0xffff ) );
+    
+                    DWORD IFDOffset = GetDWORD( startingOffset, littleEndian );
+                    EnumerateIFD0( 0, IFDOffset, headerBase, littleEndian, pwcExt );
+                }
+            }
+        }
+
         if ( 0 != g_Canon_CR3_Exif_Exif_IFD )
         {
             WORD endian = GetWORD( g_Canon_CR3_Exif_Exif_IFD, littleEndian );
@@ -2693,12 +3130,12 @@ public:
     
         return ( 0 != *pcMake || 0 != *pcModel );
     } //GetCameraInfo
-    
+
     bool GetSerialNumbers( const WCHAR * pwcPath, char * pcMake, int makeLen, char * pcModel, int modelLen, char * pcSerialNumber, int serialNumberLen,
                            char * pcLensMake, int lensMakeLen, char * pcLensModel, int lensModelLen, char * pcLensSerialNumber, int lensSerialNumberLen )
     {
         UpdateCache( pwcPath );
-    
+
         *pcMake = 0;
         *pcModel = 0;
         *pcSerialNumber = 0;
