@@ -987,14 +987,15 @@ void CopyCommand( HWND hwnd )
 extern "C" INT_PTR WINAPI HelpDialogProc( HWND hdlg, UINT message, WPARAM wParam, LPARAM lParam )
 {
     static const WCHAR * helpText = L"usage:\n"
-                                     "\tpv photo [-s] [-t]\n"
-                                     "\tpv [folder] [-s] [-t]\n"
+                                     "\tpv photo [-e:EXT] [-s] [-t]\n"
+                                     "\tpv [folder] [-e:EXT] [-s] [-t]\n"
                                      "\n"
                                      "arguments:\n"
                                      "\tphoto\t\tpath of image to display\n"
                                      "\tfolder\t\tpath of folder with images (default is current path)\n"
+                                     "\t-e\t\tfile extension of files to include. e.g. /e:mp3\n"
                                      "\t-s\t\tstart slideshow\n"
-                                     "\t-t\t\tenable debug tracing to %temp%\\tracer.txt\n"
+                                     "\t-t\t\tdebug tracing to %temp%\\tracer.txt. t=append T=overwrite\n"
                                      "\n"
                                      "mouse:\n"
                                      "\tleft-click\tdisplay 1:1 pixel for pixel\n"
@@ -1745,6 +1746,7 @@ int WINAPI wWinMain( HINSTANCE hInstance, HINSTANCE, PWSTR pCmdLine, int nCmdSho
     SetProcessDpiAwarenessContext( DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 );
 
     bool enableTracer = false;
+    bool emptyTracerFile = false;
     bool startSlideshow = false;
     awcPhotoPath[0] = 0;
 
@@ -1763,8 +1765,13 @@ int WINAPI wWinMain( HINSTANCE hInstance, HINSTANCE, PWSTR pCmdLine, int nCmdSho
             {
                WCHAR a1 = towlower( pwcArg[1] );
 
-               if ( 't' == a1 )
+               if ( 't' == pwcArg[1] )
                    enableTracer = true;
+               else if ( 'T' == pwcArg[1] )
+               {
+                   enableTracer = true;
+                   emptyTracerFile = true;
+               }
                else if ( 's' == a1 )
                    startSlideshow = true;
                else if ( 'e' == a1 )
@@ -1783,7 +1790,7 @@ int WINAPI wWinMain( HINSTANCE hInstance, HINSTANCE, PWSTR pCmdLine, int nCmdSho
         LocalFree( argv );
     }
 
-    tracer.Enable( enableTracer );
+    tracer.Enable( enableTracer, NULL, emptyTracerFile );
 
     if ( 0 == awcInput[ 0 ] )
         wcscpy_s( awcInput, _countof( awcInput ), L".\\" );

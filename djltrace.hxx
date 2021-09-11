@@ -26,12 +26,14 @@ class CDJLTrace
             fp = NULL;
         }
 
-        bool Enable( bool enable, const WCHAR * pwcLogFile = NULL )
+        bool Enable( bool enable, const WCHAR * pwcLogFile = NULL, bool destroyContents = false )
         {
             Shutdown();
 
             if ( enable )
             {
+                WCHAR * mode = destroyContents ? L"w+t" : L"a+t";
+
                 if ( NULL == pwcLogFile )
                 {
                     const WCHAR * pwcFile = L"tracer.txt";
@@ -45,11 +47,11 @@ class CDJLTrace
                         return false;
 
                     wcscat( tempPath.get(), pwcFile );
-                    fp = _wfsopen( tempPath.get(), L"a+t", _SH_DENYWR );
+                    fp = _wfsopen( tempPath.get(), mode, _SH_DENYWR );
                 }
                 else
                 {
-                    fp = _wfsopen( pwcLogFile, L"a+t", _SH_DENYWR );
+                    fp = _wfsopen( pwcLogFile, mode, _SH_DENYWR );
                 }
             }
 

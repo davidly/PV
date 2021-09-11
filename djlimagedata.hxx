@@ -2192,7 +2192,15 @@ private:
 
                 int o = frameOffset + frameHeaderSize;
                 int oFrameData = o;
-                byte encoding = GetBYTE( o++ );
+
+                // Every MP3 in my collection had far less than 100 bytes of data prior to the image itself.
+                // I'm using 200 in case there are really odd MP3s out there
+
+                byte apicdata[ 200 ];
+                GetBytes( o, &apicdata, sizeof apicdata );
+
+                int datao = 0;
+                byte encoding = apicdata[ datao++ ];
     
                 if ( 0 != encoding && 1 != encoding && 3 != encoding )
                 {
@@ -2204,7 +2212,7 @@ private:
     
                 // mimetype encoding is always ascii
 
-                char acMimeType[ 100 ];
+                char acMimeType[ 40 ];
                 int i = 0;
 
                 do
@@ -2215,7 +2223,7 @@ private:
                         return;
                     }
 
-                    char c = GetBYTE( o++ );
+                    char c = apicdata[ datao++ ];
                     acMimeType[ i++ ] = c;
                     if ( 0 == c )
                         break;
@@ -2231,15 +2239,15 @@ private:
     
                 if ( isJPG || isPNG )
                 {
-                    int to = o;
+                    int to = datao;
     
                     for ( int z = 0; z < 20; z++ )
                     {
-                        WORD w = GetWORD( to + z, true );
+                        WORD w = apicdata[ z + datao ] | ( apicdata[ z + datao + 1 ] << 8 );
     
                         if ( ( ( 0xd8ff == w ) && isJPG ) || ( ( 0x5089 == w ) && isPNG ) )
                         {
-                            o = to + z - 2;
+                            datao = to + z - 2;
                             break;
                         }
                     }
@@ -2258,7 +2266,7 @@ private:
                    return;
                }
 
-                byte pictureType = GetBYTE( o++ );
+                byte pictureType = apicdata[ datao++ ];
     
                 i = 0;
                 bool foundEndOfString = false;
@@ -2267,9 +2275,9 @@ private:
                 {
                     do
                     {
-                        WCHAR wc = GetBYTE( o++ );
+                        WCHAR wc = apicdata[ datao++ ];
     
-                        if ( i >= 1000 )
+                        if ( datao >= sizeof( apicdata ) )
                             break;
 
                         if ( 0 == wc )
@@ -2283,10 +2291,10 @@ private:
                 {
                     do
                     {
-                        WCHAR wc = GetWORD( o, true );
-                        o += 2;
+                        WCHAR wc = apicdata[ datao ] | ( apicdata[ datao + 1 ] << 8 );
+                        datao += 2;
     
-                        if ( i >= 1000 )
+                        if ( datao >= sizeof( apicdata ) )
                             break;
 
                         if ( 0 == wc )
@@ -2300,9 +2308,17 @@ private:
                 if ( !foundEndOfString )
                 {
                     tracer.Trace( "invalid description string for picture\n" );
-                    break;
+                    return;
                 }
-    
+
+                if ( datao >= sizeof( apicdata ) )
+                {
+                    tracer.Trace( "walked past end of apicdata, datao: %d\n", datao );
+                    return;
+                }
+
+                o = oFrameData + datao;
+
                 if ( o < ( oFrameData + frameHeader.size ) )
                 {
                     int imageSize = frameHeader.size - ( o - oFrameData );
@@ -2320,6 +2336,10 @@ private:
                             {
                                 g_Embedded_Image_Offset = o;
                                 g_Embedded_Image_Length = imageSize;
+
+                                // Return from here; no need to continue iterating MP3 tags
+
+                                return;
                             }
                             else
                                 tracer.Trace( "invalid image header: apparently not an image in the MP3 picture field\n" );
