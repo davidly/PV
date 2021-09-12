@@ -1021,12 +1021,12 @@ extern "C" INT_PTR WINAPI HelpDialogProc( HWND hdlg, UINT message, WPARAM wParam
                                      "\t- iPhone .heic photos require a free Microsoft Store codec.\n"
                                      "\t- WIC leaks handles for .heic photos.\n"
                                      "\t- WIC crashes for DNGs created by Lightroom's \"enhance.\"\n"
-                                     "\t- Tested with 3fr arw bmp cr2 cr3 dng flac gif heic hif ico\n"
-                                     "\t      jfif jpeg jpg mp3 nef orf png raf rw2 tif tiff.\n"
-                                     "\t- Tested with RAW from Apple Canon Fujifilm Hasselblad Leica\n"
-                                     "\t      Nikon Olympus Panasonic Pentax Ricoh Sigma Sony.\n"
-                                     "\t- Rotate tries to update Exif Orientation, but may re-encode the file\n";
-                                     "\t- D2D fails to load images longer than 16384 in a dimension\n";
+                                     "\t- Tested with 3fr, arw, bmp, cr2, cr3, dng, flac, gif, heic, hif, ico,\n"
+                                     "\t      jfif, jpeg, jpg, mp3, nef, orf, png, raf, rw2, tif, tiff.\n"
+                                     "\t- Tested with RAW from Apple, Canon, Fujifilm, Hasselblad, Leica,\n"
+                                     "\t      Nikon, Olympus, Panasonic, Pentax, Ricoh, Sigma, Sony.\n"
+                                     "\t- Rotate tries to update Exif Orientation, but may re-encode the file.\n"
+                                     "\t- D2D fails to load images longer than 16384 pixels in a dimension.\n";
 
 
     switch( message )

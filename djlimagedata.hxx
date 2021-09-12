@@ -2206,7 +2206,7 @@ private:
                 {
                     // 2 == UTF-16 isn't handled because I can't find a file like that to test
     
-                    tracer.Trace( "invalid encoding for image text %d\n", 0xff & encoding );
+                    tracer.Trace( "invalid encoding for APIC image text %d\n", 0xff & encoding );
                     return;
                 }
     
@@ -2219,7 +2219,7 @@ private:
                 {
                     if ( i >= ( _countof( acMimeType ) - 1 ) )
                     {
-                        tracer.Trace( "invalid mime type; it may not be null-terminated\n" );
+                        tracer.Trace( "invalid APIC mime type; it may not be null-terminated\n" );
                         return;
                     }
 
@@ -2253,8 +2253,8 @@ private:
                     }
                 }
 
-                bool knownMimeType = ( !strcmp( acMimeType, "JPG" ) ||
-                                       !strcmp( acMimeType, "PNG" ) ||
+                bool knownMimeType = ( isJPG ||
+                                       isPNG ||
                                        !strcmp( acMimeType, "image/jpg" ) ||   // lots of files have this non-standard mimetype
                                        !strcmp( acMimeType, "image/jpeg" ) ||
                                        !strcmp( acMimeType, "image/png" ) ||
@@ -2262,7 +2262,7 @@ private:
 
                if ( !knownMimeType )
                {
-                   tracer.Trace( "invalid or unknown mimetype: %s\n", acMimeType );
+                   tracer.Trace( "invalid or unknown APIC mimetype: %s\n", acMimeType );
                    return;
                }
 
@@ -2307,13 +2307,13 @@ private:
 
                 if ( !foundEndOfString )
                 {
-                    tracer.Trace( "invalid description string for picture\n" );
+                    tracer.Trace( "invalid description string for APIC picture\n" );
                     return;
                 }
 
                 if ( datao >= sizeof( apicdata ) )
                 {
-                    tracer.Trace( "walked past end of apicdata, datao: %d\n", datao );
+                    tracer.Trace( "walked past end of APIC data, invalid datao: %d\n", datao );
                     return;
                 }
 
@@ -2342,16 +2342,16 @@ private:
                                 return;
                             }
                             else
-                                tracer.Trace( "invalid image header: apparently not an image in the MP3 picture field\n" );
+                                tracer.Trace( "invalid image header: apparently not an image in the MP3 APIC picture field\n" );
                         }
                         else
-                            tracer.Trace( "ignoring an image because it's too small: %d bytes\n", imageSize );
+                            tracer.Trace( "ignoring an APIC image because it's too small: %d bytes\n", imageSize );
                     }
                     else
-                        tracer.Trace( "ignoring an image because we already have one\n" );
+                        tracer.Trace( "ignoring an APIC image because we already have one\n" );
                 }
                 else
-                    tracer.Trace( "invalid image offset %d is beyond size of the frame %d. strings inside malformed?\n", o, frameHeader.size );
+                    tracer.Trace( "invalid APIC image offset %d is beyond size of the frame %d. strings inside malformed?\n", o, frameHeader.size );
             }
             else
             {
@@ -2363,16 +2363,14 @@ private:
     
             if ( frameOffset >= g_pStream->Length() )
             {
-                tracer.Trace( "invalid frame offset is beyond the end of the file %#I64x\n", frameOffset );
+                tracer.Trace( "invalid MP3 frame offset is beyond the end of the file %#I64x\n", frameOffset );
                 break;
             }
     
             // the >= case will be caught in the while loop above; no need to break
 
             if ( frameOffset > ( start.size + firstFrameOffset ) )
-            {
-                tracer.Trace( "invalid frame offset %I64d is beyond the metadata size in the header + firstFrame %d\n", frameOffset, start.size + firstFrameOffset );
-            }
+                tracer.Trace( "invalid MP3 frame offset %I64d is beyond the metadata size in the header + firstFrame %d\n", frameOffset, start.size + firstFrameOffset );
         }
     
         #pragma pack(pop)
