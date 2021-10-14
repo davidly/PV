@@ -36,6 +36,7 @@ using namespace std::chrono;
 #include <djl_strm.hxx>
 #include <djlimagedata.hxx>
 #include <djl_rotate.hxx>
+#include <djltimed.hxx>
 
 #ifdef PV_USE_LIBRAW
 #include <djl_lr.hxx>
@@ -443,11 +444,12 @@ HRESULT CreateDeviceSwapChainBitmap( HWND hwnd )
 
 HRESULT CreateTargetAndD2DBitmap( HWND hwnd )
 {
-    high_resolution_clock::time_point tA = high_resolution_clock::now();
     HRESULT hr = S_OK;
 
     if ( ! ( g_target && g_swapChain ) )
     {
+        CTimed timedSwapChain( timeSwapChain );
+
         tracer.Trace( "no target or swapchain in CreateTargetAndD2DBitmap, so creating them\n" );
         g_target.Reset();
         g_swapChain.Reset();
@@ -457,10 +459,7 @@ HRESULT CreateTargetAndD2DBitmap( HWND hwnd )
             tracer.Trace( "CreateDeviceSwapChainBitmap failed with %#x\n", hr );
     }
 
-    high_resolution_clock::time_point tB = high_resolution_clock::now();
-    timeSwapChain += duration_cast<std::chrono::nanoseconds>( tB - tA ).count();
-
-    tA = high_resolution_clock::now();
+    CTimed timedD2DB( timeD2DB );
 
     g_D2DBitmap.Reset();
 
@@ -472,9 +471,6 @@ HRESULT CreateTargetAndD2DBitmap( HWND hwnd )
 
     if ( FAILED( hr ) )
         tracer.Trace( "CreateBitmapFromWicBitmap failed with %#x\n", hr );
-
-    tB = high_resolution_clock::now();
-    timeD2DB += duration_cast<std::chrono::nanoseconds>( tB - tA ).count();
 
     return hr;
 } //CreateTargetAndD2DBitmap
@@ -493,7 +489,7 @@ HRESULT LoadCurrentFileD2D( HWND hwnd, const WCHAR * pwcPath, IStream * pStream,
 
     if ( useLibRaw )
     {
-        high_resolution_clock::time_point tA = high_resolution_clock::now();
+        CTimed timedLibRaw( timeLibRaw );
         CLibRaw libraw;
         int colors = 0;
         int bpc = 8; // use 16 when hdr display support is added
@@ -530,9 +526,6 @@ HRESULT LoadCurrentFileD2D( HWND hwnd, const WCHAR * pwcPath, IStream * pStream,
         }
         else
             hr = E_FAIL;
-     
-        high_resolution_clock::time_point tB = high_resolution_clock::now();
-        timeLibRaw += duration_cast<std::chrono::nanoseconds>( tB - tA ).count();
 
         if ( FAILED( hr ) )
         {
@@ -622,8 +615,6 @@ HRESULT LoadCurrentFileD2D( HWND hwnd, const WCHAR * pwcPath, IStream * pStream,
         }
     }
 
-    high_resolution_clock::time_point tA = high_resolution_clock::now();
-
     if ( SUCCEEDED( hr ) )
         hr = g_BitmapSource->GetSize( (UINT *) pwidth, (UINT *) pheight );
 
@@ -665,8 +656,6 @@ bool LoadCurrentFileUsingD2D( HWND hwnd )
     int availableHeight = 0;
     const WCHAR * pwcFile = g_pImageArray->Get( g_currentBitmapIndex );
 
-    high_resolution_clock::time_point tBMA = high_resolution_clock::now();
-
     g_pImageData->PurgeCache();
 
     // First try to find an embedded JPG/PNG rather than having WIC do so. This is because WIC's codecs are buggy and
@@ -681,10 +670,11 @@ bool LoadCurrentFileUsingD2D( HWND hwnd )
     int fullWidth = 0;
     int fullHeight = 0;
 
-    high_resolution_clock::time_point tEmbeddedA = high_resolution_clock::now();
-    bool foundEmbedding = g_pImageData->FindEmbeddedImage( pwcFile, & llEmbeddedOffset, & llEmbeddedLength, & orientationValue, & embeddedWidth, & embeddedHeight, & fullWidth, & fullHeight );
-    high_resolution_clock::time_point tEmbeddedB = high_resolution_clock::now();
-    timeMetadata += duration_cast<std::chrono::nanoseconds>( tEmbeddedB - tEmbeddedA ).count();
+    CTimed timedMetadata( timeMetadata );
+
+    bool foundEmbedding = g_pImageData->FindEmbeddedImage( pwcFile, & llEmbeddedOffset, & llEmbeddedLength, & orientationValue,
+                                                           & embeddedWidth, & embeddedHeight, & fullWidth, & fullHeight );
+    timedMetadata.Complete();
 
     // If the embedded JPG is large enough, use it. For some cameras, it's not. For those use LibRaw to process the RAW image.
 
@@ -711,7 +701,7 @@ bool LoadCurrentFileUsingD2D( HWND hwnd )
 
     tracer.Trace( "  find embedded image result %d, %lld, %lld, orientation %d useLibRaw %d for %ws\n", foundEmbedding, llEmbeddedOffset, llEmbeddedLength, orientationValue, useLibRaw, pwcFile );
 
-    high_resolution_clock::time_point tLoadA = high_resolution_clock::now();
+    CTimed timedLoad( timeLoad );
 
     if ( foundEmbedding && !useLibRaw && isRaw )
     {
@@ -756,10 +746,9 @@ bool LoadCurrentFileUsingD2D( HWND hwnd )
         return false;
     }
 
-    high_resolution_clock::time_point tLoadB = high_resolution_clock::now();
-    timeLoad += duration_cast<std::chrono::nanoseconds>( tLoadB - tLoadA ).count();
+    timedLoad.Complete();
 
-    high_resolution_clock::time_point tMetadataA = high_resolution_clock::now();
+    CTimed timedInterestingMetadata( timeMetadata );
     g_acImageMetadata[ 0 ] = 0;
     g_awcImageMetadata[ 0 ] = 0;
     bool ok = g_pImageData->GetInterestingMetadata( pwcFile, g_acImageMetadata, _countof( g_acImageMetadata ), availableWidth, availableHeight );
@@ -769,9 +758,6 @@ bool LoadCurrentFileUsingD2D( HWND hwnd )
         size_t cConverted = 0;
         mbstowcs_s( &cConverted, g_awcImageMetadata, _countof( g_awcImageMetadata ), g_acImageMetadata, 1 + strlen( g_acImageMetadata ) );
     }
-
-    high_resolution_clock::time_point tMetadataB = high_resolution_clock::now();
-    timeMetadata += duration_cast<std::chrono::nanoseconds>( tMetadataB - tMetadataA ).count();
 
     int len = swprintf_s( winTitle.get(), maxTitleLen, titleResource.get(), g_currentBitmapIndex + 1, g_pImageArray->Count(), pwcFile );
     if ( -1 != len )
@@ -1720,12 +1706,13 @@ LRESULT CALLBACK WindowProc( HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam 
 
         case WM_PAINT:
         {
-            high_resolution_clock::time_point tA = high_resolution_clock::now();
+            CTimed timedPaint( timePaint );
             OnPaint( hwnd, mouseX, mouseY, zoomLevel );
-            high_resolution_clock::time_point tB = high_resolution_clock::now();
-            timePaint += duration_cast<std::chrono::nanoseconds>( tB - tA ).count();
+            timedPaint.Complete();
 
-            tracer.Trace( "metadata %lld, load %lld (%lld in libraw, %lld in swap, %lld in D2DB), paint %lld\n", timeMetadata, timeLoad, timeLibRaw, timeSwapChain, timeD2DB, timePaint );
+            tracer.Trace( "metadata %lld, load %lld (%lld in libraw, %lld in swap, %lld in D2DB), paint %lld\n",
+                          timeMetadata / CTimed::NanoPerMilli(), timeLoad / CTimed::NanoPerMilli(), timeLibRaw / CTimed::NanoPerMilli(),
+                          timeSwapChain / CTimed::NanoPerMilli(), timeD2DB / CTimed::NanoPerMilli(), timePaint / CTimed::NanoPerMilli() );
 
             break;
         }
@@ -1925,7 +1912,8 @@ int WINAPI wWinMain( HINSTANCE hInstance, HINSTANCE, PWSTR pCmdLine, int nCmdSho
     // These times are acceptable given that most use cases will have far fewer files.
     // This won't work well for network and spinning drives with lots of content. Make the enumeration async if needed.
 
-    high_resolution_clock::time_point tA = high_resolution_clock::now();
+    long long timeFinding = 0;
+    CTimed timedFinding( timeFinding );
 
     WCHAR ** pwcExtensions = (WCHAR **) imageExtensions;
     int cExtensions = _countof( imageExtensions );
@@ -1941,8 +1929,7 @@ int WINAPI wWinMain( HINSTANCE hInstance, HINSTANCE, PWSTR pCmdLine, int nCmdSho
     enumFolder.Enumerate( awcPhotoPath, L"*" );
     SortImages();
 
-    high_resolution_clock::time_point tB = high_resolution_clock::now();
-    long long timeFinding = duration_cast<std::chrono::nanoseconds>( tB - tA ).count();
+    timedFinding.Complete();
     tracer.Trace( "time finding %d files: %lld\n", g_pImageArray->Count(), timeFinding );
 
     if ( 0 != awcStartingPhoto[ 0 ] )
