@@ -226,8 +226,8 @@ class CCropFactor
             cameras.push_back( CropFactor( "Canon PowerShot A80", crop_S70 ) );           // 1/1.8
             cameras.push_back( CropFactor( "Canon PowerShot A85", crop_TwoPoint7 ) );
             cameras.push_back( CropFactor( "Canon PowerShot G5", crop_S70 ) );
+            cameras.push_back( CropFactor( "Canon PowerShot G5 X Mark II", crop_ONE_INCH ) );
             cameras.push_back( CropFactor( "Canon PowerShot G7 X Mark II", crop_ONE_INCH ) );
-            cameras.push_back( CropFactor( "PowerShot G7 X Mark II", crop_ONE_INCH ) );   // note that the LibRaw raw processor emits this as the camera name
             cameras.push_back( CropFactor( "Canon PowerShot G7 X", crop_ONE_INCH ) );
             cameras.push_back( CropFactor( "Canon PowerShot G9 X Mark II", crop_ONE_INCH ) );
             cameras.push_back( CropFactor( "Canon PowerShot G9", crop_OOOPS ) );
@@ -372,11 +372,11 @@ class CCropFactor
             cameras.push_back( CropFactor( "Perfection V30/V300", 1.0 ) );      // scanner
             cameras.push_back( CropFactor( "Perfection V39", 1.0 ) );           // scanner
             cameras.push_back( CropFactor( "PM23300", 7.68 ) );                 // this is an educated guess for this HTC phone
-            cameras.push_back( CropFactor( "PowerShot G7 X", crop_ONE_INCH ) ); // the libraw raw converter does this.
             cameras.push_back( CropFactor( "PowerShot S95", crop_OOOPS ) );     // libraw strikes again
             cameras.push_back( CropFactor( "QCAM-AA", 7.68 ) );                 // google pixel phone? random guess
             cameras.push_back( CropFactor( "QSS-32_33", 1.0 ) );                // it's a scanner
             cameras.push_back( CropFactor( "RICOH GR III", crop_APSC ) );
+            cameras.push_back( CropFactor( "RICOH GR IIIx", crop_APSC ) );
             cameras.push_back( CropFactor( "RICOH THETA S", ( 7.3 / 1.3 ) ) );
             cameras.push_back( CropFactor( "RICOH THETA Z1", ( 7.3 / 1.3 ) ) );
             cameras.push_back( CropFactor( "SGH-I917", 7.68 ) );                // unknown, this is a guess
@@ -407,7 +407,7 @@ class CCropFactor
             cameras.push_back( CropFactor( "X1D II 50C", crop_Fuji_Medium ) );
             cameras.push_back( CropFactor( "XP-420 Series", 1.0 ) );            // it's a scanner
             cameras.push_back( CropFactor( "XP-420", 1.0 ) );                   // it's a scanner
-            cameras.push_back( CropFactor( "X-U (Typ 113)", crop_APSC ) );      // LibRaw does this
+            cameras.push_back( CropFactor( "X-U (Typ 113)", crop_APSC ) );      // LibRaw does this to this Leica camera
             cameras.push_back( CropFactor( "XZ-1", 4.414995 ) );                // 1/1.63"  8.07 x 5.56
             cameras.push_back( CropFactor( "ZN5", 7.0 ) );                      // Motorola phone. value is a guess
             cameras.push_back( CropFactor( "iPAQ rx3000", 9.0 ) );              // random guess
@@ -526,155 +526,155 @@ class CCropFactor
             cameras[67].pcCamera = "Canon PowerShot A80"; cameras[67].cropFactor = 4.845086;
             cameras[68].pcCamera = "Canon PowerShot A85"; cameras[68].cropFactor = 6.516057;
             cameras[69].pcCamera = "Canon PowerShot G5"; cameras[69].cropFactor = 4.845086;
-            cameras[70].pcCamera = "Canon PowerShot G7 X"; cameras[70].cropFactor = 2.727273;
-            cameras[71].pcCamera = "Canon PowerShot G7 X Mark II"; cameras[71].cropFactor = 2.727273;
-            cameras[72].pcCamera = "Canon PowerShot G9"; cameras[72].cropFactor = 4.652324;
-            cameras[73].pcCamera = "Canon PowerShot G9 X Mark II"; cameras[73].cropFactor = 2.727273;
-            cameras[74].pcCamera = "Canon PowerShot S100"; cameras[74].cropFactor = 4.652324;
-            cameras[75].pcCamera = "Canon PowerShot S2 IS"; cameras[75].cropFactor = 6.015934;
-            cameras[76].pcCamera = "Canon PowerShot S200"; cameras[76].cropFactor = 4.652324;
-            cameras[77].pcCamera = "Canon PowerShot S70"; cameras[77].cropFactor = 4.845086;
-            cameras[78].pcCamera = "Canon PowerShot S95"; cameras[78].cropFactor = 4.652324;
-            cameras[79].pcCamera = "Canon PowerShot SD10"; cameras[79].cropFactor = 6.025991;
-            cameras[80].pcCamera = "Canon PowerShot SD1100 IS"; cameras[80].cropFactor = 6.015934;
-            cameras[81].pcCamera = "Canon PowerShot SD450"; cameras[81].cropFactor = 6.015934;
-            cameras[82].pcCamera = "Canon PowerShot SD550"; cameras[82].cropFactor = 4.845086;
-            cameras[83].pcCamera = "Canon PowerShot SD780 IS"; cameras[83].cropFactor = 5.643778;
-            cameras[84].pcCamera = "Canon PowerShot SD790 IS"; cameras[84].cropFactor = 5.643778;
-            cameras[85].pcCamera = "Canon PowerShot SX110 IS"; cameras[85].cropFactor = 6.015934;
-            cameras[86].pcCamera = "Canon PowerShot SX530 HS"; cameras[86].cropFactor = 5.643778;
-            cameras[87].pcCamera = "Canon PowerShot SX600 HS"; cameras[87].cropFactor = 5.643778;
-            cameras[88].pcCamera = "Canon VIXIA HF10"; cameras[88].cropFactor = 7.611984;
-            cameras[89].pcCamera = "DC-S1R"; cameras[89].cropFactor = 1.000000;
-            cameras[90].pcCamera = "DC-ZS200"; cameras[90].cropFactor = 2.727273;
-            cameras[91].pcCamera = "DC210 Zoom (V03.10)"; cameras[91].cropFactor = 6.591501;
-            cameras[92].pcCamera = "DCR-TRV30"; cameras[92].cropFactor = 10.816654;
-            cameras[93].pcCamera = "DMC-CM1"; cameras[93].cropFactor = 2.727273;
-            cameras[94].pcCamera = "DMC-FS3"; cameras[94].cropFactor = 6.025991;
-            cameras[95].pcCamera = "DMC-FX8"; cameras[95].cropFactor = 6.025991;
-            cameras[96].pcCamera = "DMC-FZ5"; cameras[96].cropFactor = 6.015934;
-            cameras[97].pcCamera = "DMC-G3"; cameras[97].cropFactor = 1.999381;
-            cameras[98].pcCamera = "DMC-GF1"; cameras[98].cropFactor = 1.999381;
-            cameras[99].pcCamera = "DMC-GF2"; cameras[99].cropFactor = 1.999381;
-            cameras[100].pcCamera = "DMC-GM1"; cameras[100].cropFactor = 1.999381;
-            cameras[101].pcCamera = "DMC-GX7"; cameras[101].cropFactor = 1.999381;
-            cameras[102].pcCamera = "DMC-LX100"; cameras[102].cropFactor = 1.999381;
-            cameras[103].pcCamera = "DMC-TS2"; cameras[103].cropFactor = 5.692976;
-            cameras[104].pcCamera = "DMC-TS3"; cameras[104].cropFactor = 5.692976;
-            cameras[105].pcCamera = "DMC-ZS1"; cameras[105].cropFactor = 6.025991;
-            cameras[106].pcCamera = "DMC-ZS100"; cameras[106].cropFactor = 2.727273;
-            cameras[107].pcCamera = "DMC-ZS7"; cameras[107].cropFactor = 5.692976;
-            cameras[108].pcCamera = "DSC-N1"; cameras[108].cropFactor = 4.845086;
-            cameras[109].pcCamera = "DSC-P52"; cameras[109].cropFactor = 6.516057;
-            cameras[110].pcCamera = "DSC-RX1"; cameras[110].cropFactor = 1.000000;
-            cameras[111].pcCamera = "DSC-RX100"; cameras[111].cropFactor = 2.727273;
-            cameras[112].pcCamera = "DSC-W120"; cameras[112].cropFactor = 6.015934;
-            cameras[113].pcCamera = "DSC-W560"; cameras[113].cropFactor = 5.600000;
-            cameras[114].pcCamera = "DSC-W80"; cameras[114].cropFactor = 6.025991;
-            cameras[115].pcCamera = "DSC-W800"; cameras[115].cropFactor = 5.643778;
-            cameras[116].pcCamera = "DSC-WX1"; cameras[116].cropFactor = 5.623000;
-            cameras[117].pcCamera = "DSC-WX300"; cameras[117].cropFactor = 5.643778;
-            cameras[118].pcCamera = "DV 5700"; cameras[118].cropFactor = 7.000000;
-            cameras[119].pcCamera = "DiMAGE 7"; cameras[119].cropFactor = 3.900000;
-            cameras[120].pcCamera = "Digital Link"; cameras[120].cropFactor = 1.000000;
-            cameras[121].pcCamera = "E-M10MarkII"; cameras[121].cropFactor = 1.999381;
-            cameras[122].pcCamera = "E-PM2"; cameras[122].cropFactor = 1.999381;
-            cameras[123].pcCamera = "E3100"; cameras[123].cropFactor = 6.516057;
-            cameras[124].pcCamera = "E5200"; cameras[124].cropFactor = 4.845086;
-            cameras[125].pcCamera = "E5400"; cameras[125].cropFactor = 4.845086;
-            cameras[126].pcCamera = "E6653"; cameras[126].cropFactor = 5.600000;
-            cameras[127].pcCamera = "E990"; cameras[127].cropFactor = 4.845086;
-            cameras[128].pcCamera = "EOS 5D Mark II"; cameras[128].cropFactor = 1.000000;
-            cameras[129].pcCamera = "EX1"; cameras[129].cropFactor = 5.748494;
-            cameras[130].pcCamera = "Electro 35 GSN"; cameras[130].cropFactor = 1.000000;
-            cameras[131].pcCamera = "Epson Stylus NX420"; cameras[131].cropFactor = 1.000000;
-            cameras[132].pcCamera = "FinePix F900EXR"; cameras[132].cropFactor = 5.326000;
-            cameras[133].pcCamera = "FinePix S3Pro"; cameras[133].cropFactor = 1.529400;
-            cameras[134].pcCamera = "FinePix4900ZOOM"; cameras[134].cropFactor = 4.652324;
-            cameras[135].pcCamera = "FinePixS2Pro"; cameras[135].cropFactor = 1.529400;
-            cameras[136].pcCamera = "FrontRow Wear"; cameras[136].cropFactor = 5.080000;
-            cameras[137].pcCamera = "G8141"; cameras[137].cropFactor = 5.643778;
-            cameras[138].pcCamera = "GFX 100"; cameras[138].cropFactor = 0.790048;
-            cameras[139].pcCamera = "GFX 50R"; cameras[139].cropFactor = 0.790048;
-            cameras[140].pcCamera = "GFX 50S"; cameras[140].cropFactor = 0.790048;
-            cameras[141].pcCamera = "GFX100S"; cameras[141].cropFactor = 0.790048;
-            cameras[142].pcCamera = "GR II"; cameras[142].cropFactor = 1.529400;
-            cameras[143].pcCamera = "H1A1000"; cameras[143].cropFactor = 7.000000;
-            cameras[144].pcCamera = "H8166"; cameras[144].cropFactor = 5.692976;
-            cameras[145].pcCamera = "HD7"; cameras[145].cropFactor = 5.692976;
-            cameras[146].pcCamera = "HDR-SR1"; cameras[146].cropFactor = 7.211103;
-            cameras[147].pcCamera = "HERO6 Black"; cameras[147].cropFactor = 5.643778;
-            cameras[148].pcCamera = "HP PhotoSmart C945 (V01.60)"; cameras[148].cropFactor = 1.000000;
-            cameras[149].pcCamera = "HP Scanjet 4800"; cameras[149].cropFactor = 1.000000;
-            cameras[150].pcCamera = "HTC Touch Diamond P370"; cameras[150].cropFactor = 10.000000;
-            cameras[151].pcCamera = "HTC Touch Diamond P3700"; cameras[151].cropFactor = 10.000000;
-            cameras[152].pcCamera = "HTC-8900"; cameras[152].cropFactor = 7.680000;
-            cameras[153].pcCamera = "Hewlett-Packard PSC 750 Scanner"; cameras[153].cropFactor = 1.000000;
-            cameras[154].pcCamera = "ILCE-7"; cameras[154].cropFactor = 1.000000;
-            cameras[155].pcCamera = "ILCE-7M3"; cameras[155].cropFactor = 1.000000;
-            cameras[156].pcCamera = "ILCE-7RM2"; cameras[156].cropFactor = 1.000000;
-            cameras[157].pcCamera = "ILCE-7S"; cameras[157].cropFactor = 1.000000;
-            cameras[158].pcCamera = "KODAK DC240 ZOOM DIGITAL CAMERA"; cameras[158].cropFactor = 6.591501;
-            cameras[159].pcCamera = "KODAK EASYSHARE V1003 ZOOM DIGITAL CAMERA"; cameras[159].cropFactor = 4.845086;
-            cameras[160].pcCamera = "KODAK V530 ZOOM DIGITAL CAMERA"; cameras[160].cropFactor = 4.241825;
-            cameras[161].pcCamera = "Kodak CLAS Digital Film Scanner / HR200"; cameras[161].cropFactor = 1.000000;
-            cameras[162].pcCamera = "L16"; cameras[162].cropFactor = 1.000000;
-            cameras[163].pcCamera = "LEICA M MONOCHROM (Typ 246)"; cameras[163].cropFactor = 1.000000;
-            cameras[164].pcCamera = "LEICA M10"; cameras[164].cropFactor = 1.000000;
-            cameras[165].pcCamera = "LEICA Q (Typ 116)"; cameras[165].cropFactor = 1.000000;
-            cameras[166].pcCamera = "LEICA Q2"; cameras[166].cropFactor = 1.000000;
-            cameras[167].pcCamera = "LEICA Q2 MONO"; cameras[167].cropFactor = 1.000000;
-            cameras[168].pcCamera = "LEICA SL (Typ 601)"; cameras[168].cropFactor = 1.000000;
-            cameras[169].pcCamera = "LEICA SL2-S"; cameras[169].cropFactor = 1.000000;
-            cameras[170].pcCamera = "LEICA X-U (Typ 113)"; cameras[170].cropFactor = 1.529400;
-            cameras[171].pcCamera = "LS-5000"; cameras[171].cropFactor = 1.000000;
-            cameras[172].pcCamera = "LS-9000"; cameras[172].cropFactor = 1.000000;
-            cameras[173].pcCamera = "Lumia 1020"; cameras[173].cropFactor = 4.113183;
-            cameras[174].pcCamera = "Lumia 520"; cameras[174].cropFactor = 7.680000;
-            cameras[175].pcCamera = "Lumia 830"; cameras[175].cropFactor = 7.680000;
-            cameras[176].pcCamera = "Lumia 920"; cameras[176].cropFactor = 7.680000;
-            cameras[177].pcCamera = "Lumia 950"; cameras[177].cropFactor = 5.623000;
-            cameras[178].pcCamera = "Lumia 950 XL"; cameras[178].cropFactor = 5.623000;
-            cameras[179].pcCamera = "MHS-PM1"; cameras[179].cropFactor = 6.015934;
-            cameras[180].pcCamera = "MX880 series"; cameras[180].cropFactor = 1.000000;
-            cameras[181].pcCamera = "NEX-3N"; cameras[181].cropFactor = 1.529400;
-            cameras[182].pcCamera = "NEX-5N"; cameras[182].cropFactor = 1.529400;
-            cameras[183].pcCamera = "NIKON D100"; cameras[183].cropFactor = 1.527854;
-            cameras[184].pcCamera = "NIKON D300"; cameras[184].cropFactor = 1.527854;
-            cameras[185].pcCamera = "NIKON D3100"; cameras[185].cropFactor = 1.527854;
-            cameras[186].pcCamera = "NIKON D3400"; cameras[186].cropFactor = 1.527854;
-            cameras[187].pcCamera = "NIKON D4"; cameras[187].cropFactor = 1.000000;
-            cameras[188].pcCamera = "NIKON D40"; cameras[188].cropFactor = 1.527854;
-            cameras[189].pcCamera = "NIKON D5100"; cameras[189].cropFactor = 1.527854;
-            cameras[190].pcCamera = "NIKON D5200"; cameras[190].cropFactor = 1.527854;
-            cameras[191].pcCamera = "NIKON D600"; cameras[191].cropFactor = 1.000000;
-            cameras[192].pcCamera = "NIKON D610"; cameras[192].cropFactor = 1.000000;
-            cameras[193].pcCamera = "NIKON D70"; cameras[193].cropFactor = 1.527854;
-            cameras[194].pcCamera = "NIKON D700"; cameras[194].cropFactor = 1.000000;
-            cameras[195].pcCamera = "NIKON D70s"; cameras[195].cropFactor = 1.527854;
-            cameras[196].pcCamera = "NIKON D80"; cameras[196].cropFactor = 1.527854;
-            cameras[197].pcCamera = "NIKON D800"; cameras[197].cropFactor = 1.000000;
-            cameras[198].pcCamera = "NIKON D810"; cameras[198].cropFactor = 1.000000;
-            cameras[199].pcCamera = "NIKON Z 6"; cameras[199].cropFactor = 1.000000;
-            cameras[200].pcCamera = "NIKON Z 7_2"; cameras[200].cropFactor = 1.000000;
-            cameras[201].pcCamera = "Nexus 7"; cameras[201].cropFactor = 9.440000;
-            cameras[202].pcCamera = "Nexus 9"; cameras[202].cropFactor = 10.816654;
-            cameras[203].pcCamera = "Nikon SUPER COOLSCAN 5000 ED"; cameras[203].cropFactor = 1.000000;
-            cameras[204].pcCamera = "OpticFilm 8100"; cameras[204].cropFactor = 1.000000;
-            cameras[205].pcCamera = "P 65+"; cameras[205].cropFactor = 0.642319;
-            cameras[206].pcCamera = "PENTAX K-3 Mark III"; cameras[206].cropFactor = 1.529400;
-            cameras[207].pcCamera = "PENTAX K-r"; cameras[207].cropFactor = 1.529400;
-            cameras[208].pcCamera = "PENTAX K10D"; cameras[208].cropFactor = 1.529400;
-            cameras[209].pcCamera = "PM23300"; cameras[209].cropFactor = 7.680000;
-            cameras[210].pcCamera = "Panasonic DMC-GF2"; cameras[210].cropFactor = 1.999381;
-            cameras[211].pcCamera = "Perfection V30/V300"; cameras[211].cropFactor = 1.000000;
-            cameras[212].pcCamera = "Perfection V39"; cameras[212].cropFactor = 1.000000;
-            cameras[213].pcCamera = "PowerShot G7 X"; cameras[213].cropFactor = 2.727273;
-            cameras[214].pcCamera = "PowerShot G7 X Mark II"; cameras[214].cropFactor = 2.727273;
-            cameras[215].pcCamera = "PowerShot S95"; cameras[215].cropFactor = 4.652324;
-            cameras[216].pcCamera = "QCAM-AA"; cameras[216].cropFactor = 7.680000;
-            cameras[217].pcCamera = "QSS-32_33"; cameras[217].cropFactor = 1.000000;
-            cameras[218].pcCamera = "RICOH GR III"; cameras[218].cropFactor = 1.529400;
+            cameras[70].pcCamera = "Canon PowerShot G5 X Mark II"; cameras[70].cropFactor = 2.727273;
+            cameras[71].pcCamera = "Canon PowerShot G7 X"; cameras[71].cropFactor = 2.727273;
+            cameras[72].pcCamera = "Canon PowerShot G7 X Mark II"; cameras[72].cropFactor = 2.727273;
+            cameras[73].pcCamera = "Canon PowerShot G9"; cameras[73].cropFactor = 4.652324;
+            cameras[74].pcCamera = "Canon PowerShot G9 X Mark II"; cameras[74].cropFactor = 2.727273;
+            cameras[75].pcCamera = "Canon PowerShot S100"; cameras[75].cropFactor = 4.652324;
+            cameras[76].pcCamera = "Canon PowerShot S2 IS"; cameras[76].cropFactor = 6.015934;
+            cameras[77].pcCamera = "Canon PowerShot S200"; cameras[77].cropFactor = 4.652324;
+            cameras[78].pcCamera = "Canon PowerShot S70"; cameras[78].cropFactor = 4.845086;
+            cameras[79].pcCamera = "Canon PowerShot S95"; cameras[79].cropFactor = 4.652324;
+            cameras[80].pcCamera = "Canon PowerShot SD10"; cameras[80].cropFactor = 6.025991;
+            cameras[81].pcCamera = "Canon PowerShot SD1100 IS"; cameras[81].cropFactor = 6.015934;
+            cameras[82].pcCamera = "Canon PowerShot SD450"; cameras[82].cropFactor = 6.015934;
+            cameras[83].pcCamera = "Canon PowerShot SD550"; cameras[83].cropFactor = 4.845086;
+            cameras[84].pcCamera = "Canon PowerShot SD780 IS"; cameras[84].cropFactor = 5.643778;
+            cameras[85].pcCamera = "Canon PowerShot SD790 IS"; cameras[85].cropFactor = 5.643778;
+            cameras[86].pcCamera = "Canon PowerShot SX110 IS"; cameras[86].cropFactor = 6.015934;
+            cameras[87].pcCamera = "Canon PowerShot SX530 HS"; cameras[87].cropFactor = 5.643778;
+            cameras[88].pcCamera = "Canon PowerShot SX600 HS"; cameras[88].cropFactor = 5.643778;
+            cameras[89].pcCamera = "Canon VIXIA HF10"; cameras[89].cropFactor = 7.611984;
+            cameras[90].pcCamera = "DC-S1R"; cameras[90].cropFactor = 1.000000;
+            cameras[91].pcCamera = "DC-ZS200"; cameras[91].cropFactor = 2.727273;
+            cameras[92].pcCamera = "DC210 Zoom (V03.10)"; cameras[92].cropFactor = 6.591501;
+            cameras[93].pcCamera = "DCR-TRV30"; cameras[93].cropFactor = 10.816654;
+            cameras[94].pcCamera = "DMC-CM1"; cameras[94].cropFactor = 2.727273;
+            cameras[95].pcCamera = "DMC-FS3"; cameras[95].cropFactor = 6.025991;
+            cameras[96].pcCamera = "DMC-FX8"; cameras[96].cropFactor = 6.025991;
+            cameras[97].pcCamera = "DMC-FZ5"; cameras[97].cropFactor = 6.015934;
+            cameras[98].pcCamera = "DMC-G3"; cameras[98].cropFactor = 1.999381;
+            cameras[99].pcCamera = "DMC-GF1"; cameras[99].cropFactor = 1.999381;
+            cameras[100].pcCamera = "DMC-GF2"; cameras[100].cropFactor = 1.999381;
+            cameras[101].pcCamera = "DMC-GM1"; cameras[101].cropFactor = 1.999381;
+            cameras[102].pcCamera = "DMC-GX7"; cameras[102].cropFactor = 1.999381;
+            cameras[103].pcCamera = "DMC-LX100"; cameras[103].cropFactor = 1.999381;
+            cameras[104].pcCamera = "DMC-TS2"; cameras[104].cropFactor = 5.692976;
+            cameras[105].pcCamera = "DMC-TS3"; cameras[105].cropFactor = 5.692976;
+            cameras[106].pcCamera = "DMC-ZS1"; cameras[106].cropFactor = 6.025991;
+            cameras[107].pcCamera = "DMC-ZS100"; cameras[107].cropFactor = 2.727273;
+            cameras[108].pcCamera = "DMC-ZS7"; cameras[108].cropFactor = 5.692976;
+            cameras[109].pcCamera = "DSC-N1"; cameras[109].cropFactor = 4.845086;
+            cameras[110].pcCamera = "DSC-P52"; cameras[110].cropFactor = 6.516057;
+            cameras[111].pcCamera = "DSC-RX1"; cameras[111].cropFactor = 1.000000;
+            cameras[112].pcCamera = "DSC-RX100"; cameras[112].cropFactor = 2.727273;
+            cameras[113].pcCamera = "DSC-W120"; cameras[113].cropFactor = 6.015934;
+            cameras[114].pcCamera = "DSC-W560"; cameras[114].cropFactor = 5.600000;
+            cameras[115].pcCamera = "DSC-W80"; cameras[115].cropFactor = 6.025991;
+            cameras[116].pcCamera = "DSC-W800"; cameras[116].cropFactor = 5.643778;
+            cameras[117].pcCamera = "DSC-WX1"; cameras[117].cropFactor = 5.623000;
+            cameras[118].pcCamera = "DSC-WX300"; cameras[118].cropFactor = 5.643778;
+            cameras[119].pcCamera = "DV 5700"; cameras[119].cropFactor = 7.000000;
+            cameras[120].pcCamera = "DiMAGE 7"; cameras[120].cropFactor = 3.900000;
+            cameras[121].pcCamera = "Digital Link"; cameras[121].cropFactor = 1.000000;
+            cameras[122].pcCamera = "E-M10MarkII"; cameras[122].cropFactor = 1.999381;
+            cameras[123].pcCamera = "E-PM2"; cameras[123].cropFactor = 1.999381;
+            cameras[124].pcCamera = "E3100"; cameras[124].cropFactor = 6.516057;
+            cameras[125].pcCamera = "E5200"; cameras[125].cropFactor = 4.845086;
+            cameras[126].pcCamera = "E5400"; cameras[126].cropFactor = 4.845086;
+            cameras[127].pcCamera = "E6653"; cameras[127].cropFactor = 5.600000;
+            cameras[128].pcCamera = "E990"; cameras[128].cropFactor = 4.845086;
+            cameras[129].pcCamera = "EOS 5D Mark II"; cameras[129].cropFactor = 1.000000;
+            cameras[130].pcCamera = "EX1"; cameras[130].cropFactor = 5.748494;
+            cameras[131].pcCamera = "Electro 35 GSN"; cameras[131].cropFactor = 1.000000;
+            cameras[132].pcCamera = "Epson Stylus NX420"; cameras[132].cropFactor = 1.000000;
+            cameras[133].pcCamera = "FinePix F900EXR"; cameras[133].cropFactor = 5.326000;
+            cameras[134].pcCamera = "FinePix S3Pro"; cameras[134].cropFactor = 1.529400;
+            cameras[135].pcCamera = "FinePix4900ZOOM"; cameras[135].cropFactor = 4.652324;
+            cameras[136].pcCamera = "FinePixS2Pro"; cameras[136].cropFactor = 1.529400;
+            cameras[137].pcCamera = "FrontRow Wear"; cameras[137].cropFactor = 5.080000;
+            cameras[138].pcCamera = "G8141"; cameras[138].cropFactor = 5.643778;
+            cameras[139].pcCamera = "GFX 100"; cameras[139].cropFactor = 0.790048;
+            cameras[140].pcCamera = "GFX 50R"; cameras[140].cropFactor = 0.790048;
+            cameras[141].pcCamera = "GFX 50S"; cameras[141].cropFactor = 0.790048;
+            cameras[142].pcCamera = "GFX100S"; cameras[142].cropFactor = 0.790048;
+            cameras[143].pcCamera = "GR II"; cameras[143].cropFactor = 1.529400;
+            cameras[144].pcCamera = "H1A1000"; cameras[144].cropFactor = 7.000000;
+            cameras[145].pcCamera = "H8166"; cameras[145].cropFactor = 5.692976;
+            cameras[146].pcCamera = "HD7"; cameras[146].cropFactor = 5.692976;
+            cameras[147].pcCamera = "HDR-SR1"; cameras[147].cropFactor = 7.211103;
+            cameras[148].pcCamera = "HERO6 Black"; cameras[148].cropFactor = 5.643778;
+            cameras[149].pcCamera = "HP PhotoSmart C945 (V01.60)"; cameras[149].cropFactor = 1.000000;
+            cameras[150].pcCamera = "HP Scanjet 4800"; cameras[150].cropFactor = 1.000000;
+            cameras[151].pcCamera = "HTC Touch Diamond P370"; cameras[151].cropFactor = 10.000000;
+            cameras[152].pcCamera = "HTC Touch Diamond P3700"; cameras[152].cropFactor = 10.000000;
+            cameras[153].pcCamera = "HTC-8900"; cameras[153].cropFactor = 7.680000;
+            cameras[154].pcCamera = "Hewlett-Packard PSC 750 Scanner"; cameras[154].cropFactor = 1.000000;
+            cameras[155].pcCamera = "ILCE-7"; cameras[155].cropFactor = 1.000000;
+            cameras[156].pcCamera = "ILCE-7M3"; cameras[156].cropFactor = 1.000000;
+            cameras[157].pcCamera = "ILCE-7RM2"; cameras[157].cropFactor = 1.000000;
+            cameras[158].pcCamera = "ILCE-7S"; cameras[158].cropFactor = 1.000000;
+            cameras[159].pcCamera = "KODAK DC240 ZOOM DIGITAL CAMERA"; cameras[159].cropFactor = 6.591501;
+            cameras[160].pcCamera = "KODAK EASYSHARE V1003 ZOOM DIGITAL CAMERA"; cameras[160].cropFactor = 4.845086;
+            cameras[161].pcCamera = "KODAK V530 ZOOM DIGITAL CAMERA"; cameras[161].cropFactor = 4.241825;
+            cameras[162].pcCamera = "Kodak CLAS Digital Film Scanner / HR200"; cameras[162].cropFactor = 1.000000;
+            cameras[163].pcCamera = "L16"; cameras[163].cropFactor = 1.000000;
+            cameras[164].pcCamera = "LEICA M MONOCHROM (Typ 246)"; cameras[164].cropFactor = 1.000000;
+            cameras[165].pcCamera = "LEICA M10"; cameras[165].cropFactor = 1.000000;
+            cameras[166].pcCamera = "LEICA Q (Typ 116)"; cameras[166].cropFactor = 1.000000;
+            cameras[167].pcCamera = "LEICA Q2"; cameras[167].cropFactor = 1.000000;
+            cameras[168].pcCamera = "LEICA Q2 MONO"; cameras[168].cropFactor = 1.000000;
+            cameras[169].pcCamera = "LEICA SL (Typ 601)"; cameras[169].cropFactor = 1.000000;
+            cameras[170].pcCamera = "LEICA SL2-S"; cameras[170].cropFactor = 1.000000;
+            cameras[171].pcCamera = "LEICA X-U (Typ 113)"; cameras[171].cropFactor = 1.529400;
+            cameras[172].pcCamera = "LS-5000"; cameras[172].cropFactor = 1.000000;
+            cameras[173].pcCamera = "LS-9000"; cameras[173].cropFactor = 1.000000;
+            cameras[174].pcCamera = "Lumia 1020"; cameras[174].cropFactor = 4.113183;
+            cameras[175].pcCamera = "Lumia 520"; cameras[175].cropFactor = 7.680000;
+            cameras[176].pcCamera = "Lumia 830"; cameras[176].cropFactor = 7.680000;
+            cameras[177].pcCamera = "Lumia 920"; cameras[177].cropFactor = 7.680000;
+            cameras[178].pcCamera = "Lumia 950"; cameras[178].cropFactor = 5.623000;
+            cameras[179].pcCamera = "Lumia 950 XL"; cameras[179].cropFactor = 5.623000;
+            cameras[180].pcCamera = "MHS-PM1"; cameras[180].cropFactor = 6.015934;
+            cameras[181].pcCamera = "MX880 series"; cameras[181].cropFactor = 1.000000;
+            cameras[182].pcCamera = "NEX-3N"; cameras[182].cropFactor = 1.529400;
+            cameras[183].pcCamera = "NEX-5N"; cameras[183].cropFactor = 1.529400;
+            cameras[184].pcCamera = "NIKON D100"; cameras[184].cropFactor = 1.527854;
+            cameras[185].pcCamera = "NIKON D300"; cameras[185].cropFactor = 1.527854;
+            cameras[186].pcCamera = "NIKON D3100"; cameras[186].cropFactor = 1.527854;
+            cameras[187].pcCamera = "NIKON D3400"; cameras[187].cropFactor = 1.527854;
+            cameras[188].pcCamera = "NIKON D4"; cameras[188].cropFactor = 1.000000;
+            cameras[189].pcCamera = "NIKON D40"; cameras[189].cropFactor = 1.527854;
+            cameras[190].pcCamera = "NIKON D5100"; cameras[190].cropFactor = 1.527854;
+            cameras[191].pcCamera = "NIKON D5200"; cameras[191].cropFactor = 1.527854;
+            cameras[192].pcCamera = "NIKON D600"; cameras[192].cropFactor = 1.000000;
+            cameras[193].pcCamera = "NIKON D610"; cameras[193].cropFactor = 1.000000;
+            cameras[194].pcCamera = "NIKON D70"; cameras[194].cropFactor = 1.527854;
+            cameras[195].pcCamera = "NIKON D700"; cameras[195].cropFactor = 1.000000;
+            cameras[196].pcCamera = "NIKON D70s"; cameras[196].cropFactor = 1.527854;
+            cameras[197].pcCamera = "NIKON D80"; cameras[197].cropFactor = 1.527854;
+            cameras[198].pcCamera = "NIKON D800"; cameras[198].cropFactor = 1.000000;
+            cameras[199].pcCamera = "NIKON D810"; cameras[199].cropFactor = 1.000000;
+            cameras[200].pcCamera = "NIKON Z 6"; cameras[200].cropFactor = 1.000000;
+            cameras[201].pcCamera = "NIKON Z 7_2"; cameras[201].cropFactor = 1.000000;
+            cameras[202].pcCamera = "Nexus 7"; cameras[202].cropFactor = 9.440000;
+            cameras[203].pcCamera = "Nexus 9"; cameras[203].cropFactor = 10.816654;
+            cameras[204].pcCamera = "Nikon SUPER COOLSCAN 5000 ED"; cameras[204].cropFactor = 1.000000;
+            cameras[205].pcCamera = "OpticFilm 8100"; cameras[205].cropFactor = 1.000000;
+            cameras[206].pcCamera = "P 65+"; cameras[206].cropFactor = 0.642319;
+            cameras[207].pcCamera = "PENTAX K-3 Mark III"; cameras[207].cropFactor = 1.529400;
+            cameras[208].pcCamera = "PENTAX K-r"; cameras[208].cropFactor = 1.529400;
+            cameras[209].pcCamera = "PENTAX K10D"; cameras[209].cropFactor = 1.529400;
+            cameras[210].pcCamera = "PM23300"; cameras[210].cropFactor = 7.680000;
+            cameras[211].pcCamera = "Panasonic DMC-GF2"; cameras[211].cropFactor = 1.999381;
+            cameras[212].pcCamera = "Perfection V30/V300"; cameras[212].cropFactor = 1.000000;
+            cameras[213].pcCamera = "Perfection V39"; cameras[213].cropFactor = 1.000000;
+            cameras[214].pcCamera = "PowerShot S95"; cameras[214].cropFactor = 4.652324;
+            cameras[215].pcCamera = "QCAM-AA"; cameras[215].cropFactor = 7.680000;
+            cameras[216].pcCamera = "QSS-32_33"; cameras[216].cropFactor = 1.000000;
+            cameras[217].pcCamera = "RICOH GR III"; cameras[217].cropFactor = 1.529400;
+            cameras[218].pcCamera = "RICOH GR IIIx"; cameras[218].cropFactor = 1.529400;
             cameras[219].pcCamera = "RICOH THETA S"; cameras[219].cropFactor = 5.615385;
             cameras[220].pcCamera = "RICOH THETA Z1"; cameras[220].cropFactor = 5.615385;
             cameras[221].pcCamera = "SGH-I917"; cameras[221].cropFactor = 7.680000;
@@ -746,19 +746,40 @@ class CCropFactor
         double GetCropFactor( char * pcCameraModel )
         {
             CropFactor search = { pcCameraModel, 0.0 };
+            double result = DBL_MAX;
         
             CropFactor * pFactor = (CropFactor *) bsearch( &search, cameras.data(), cameras.size(), sizeof( CropFactor ), CameraEntryCompare );
         
-            if ( 0 == pFactor )
+            if ( 0 != pFactor )
+                result = pFactor->cropFactor;
+            else
             {
                 if ( 0 != *pcCameraModel )
-                    tracer.Trace( "crop factor can't find camera model '%s'\n", pcCameraModel );
-                return DBL_MAX;
+                {
+                    char acAddCanon[ 100 ];
+                    size_t l = strlen( pcCameraModel );
+                    if ( ( l - 7 ) < _countof( acAddCanon ) )
+                    {
+                        // LibRaw strips "Canon " from the start of Canon camera models
+
+                        strcpy( acAddCanon, "Canon " );
+                        strcpy( acAddCanon + 6, pcCameraModel );
+                        CropFactor search2 = { acAddCanon, 0.0 };
+
+                        pFactor = (CropFactor *) bsearch( &search2, cameras.data(), cameras.size(), sizeof( CropFactor ), CameraEntryCompare );
+        
+                        if ( 0 != pFactor )
+                            result = pFactor->cropFactor;
+                    }
+                }
             }
 
-            //tracer.Trace( "crop factor lookup for %s: %lf\n", pcCameraModel, pFactor->cropFactor );
-        
-            return pFactor->cropFactor;
+            //tracer.Trace( "crop factor lookup for %s: %lf\n", pcCameraModel, result );
+
+            if ( DBL_MAX == result )
+                tracer.Trace( "crop factor can't find camera model '%s'\n", pcCameraModel );
+
+            return result;
         } //GetCropFactor
 }; //CCropFactor
 

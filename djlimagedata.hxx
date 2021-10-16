@@ -869,6 +869,17 @@ private:
                     short rightBorder = FixEndianWORD( sd.rborder, littleEndian );
                     short bottomBorder = FixEndianWORD( sd.bborder, littleEndian );
                 }
+                else if ( 553 == head.id && isRicoh )
+                {
+                    if ( 2 == head.type )
+                    {
+                        ULONG stringOffset = ( head.count <= 4 ) ? ( IFDOffset - 4 ) : head.offset;
+    
+                        // Ricoh assumes the base is originalIFDOffset
+
+                        GetString( originalIFDOffset + stringOffset + headerBase, g_acSerialNumber, _countof( g_acSerialNumber ), head.count );
+                    }
+                }
                 else if ( 1280 == head.id && isLeica )
                 {
                     //char acInternalSerialNumber[ 100 ];
@@ -1227,6 +1238,9 @@ private:
                 {
                     g_Embedded_Image_Offset = o;
                     g_Embedded_Image_Length = imageLength;
+
+                    // we've got the image and that's all this function does. return now.
+                    return;
                 }
             }
     
@@ -2456,8 +2470,14 @@ private:
             }
         }
     
-        DWORD header;
-        g_pStream->Read( &header, sizeof header );
+        DWORD header = 0;
+        ULONG bytesread = g_pStream->Read( &header, sizeof header );
+        if ( 0 == bytesread )
+        {
+            tracer.Trace( "can't read from the file\n" );
+            g_pStream = NULL;
+            return;
+        }
     
         bool parsingEmbeddedImage = false;
 
@@ -2489,12 +2509,13 @@ private:
                 CStream * embeddedImage = new CStream( pwc, g_Embedded_Image_Offset, g_Embedded_Image_Length );
     
                 embeddedImage->Read( &header, sizeof header );
-    
                 stream.reset( embeddedImage );
                 g_pStream = embeddedImage;
+                parsingEmbeddedImage = true; 
             }
             else
             {
+                g_pStream = NULL;
                 return;
             }
         }
@@ -2537,7 +2558,9 @@ private:
         {
             // special handling for JPG files
 
-            isOuterFileJPG = true;
+            if ( !parsingEmbeddedImage )
+                isOuterFileJPG = true;
+
             int exifMaybe = ParseOldJpg();
 
             if ( 0 == exifMaybe )
