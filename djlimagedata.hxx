@@ -843,7 +843,15 @@ private:
                 IFDHeader & head = aHeaders[ i ];
                 IFDOffset += sizeof IFDHeader;
 
-                if ( 12 == head.id && 4 == head.type && 1 == head.count && isCanon )
+                if ( 5 == head.id && 7 == head.type && isRicohTheta )
+                {
+                    if ( head.count < ( _countof( g_acSerialNumber ) - 1 ) )
+                    {
+                        GetBytes( head.offset + headerBase, g_acSerialNumber, head.count );
+                        g_acSerialNumber[ head.count ] = 0;
+                    }
+                }
+                else if ( 12 == head.id && 4 == head.type && 1 == head.count && isCanon )
                 {
                     if ( 0 == g_acSerialNumber )
                     {
@@ -3153,7 +3161,7 @@ public:
         if ( ( 0 != *pc ) && ( '\n' == * ( current - 1 ) ) )
             *( current - 1 ) = 0;
     
-        return ( 0 != strlen( pc ) );
+        return ( 0 != ( *pc ) );
     } //GetInterestingMetadata
     
     bool GetCameraInfo( const WCHAR * pwcPath, char * pcMake, int makeLen, char * pcModel, int modelLen )
