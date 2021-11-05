@@ -103,12 +103,12 @@ class CIStream : public IStream
 
         bool Ok() { return ( 0 != pbytes ); }
 
-        ULONG AddRef()
+        ULONG STDMETHODCALLTYPE AddRef()
         {
             return InterlockedIncrement( &refcount );
         }
 
-        HRESULT QueryInterface( REFIID riid, void **ppvObject )
+        HRESULT STDMETHODCALLTYPE QueryInterface( REFIID riid, void **ppvObject )
         {
             HRESULT hr = E_NOINTERFACE;
 
@@ -133,7 +133,7 @@ class CIStream : public IStream
             return hr;
         }
 
-        ULONG Release()
+        ULONG STDMETHODCALLTYPE Release()
         {
             long l = InterlockedDecrement( &refcount );
             if ( 0 == l )
@@ -142,7 +142,7 @@ class CIStream : public IStream
             return l;
         }
 
-        HRESULT Read( void *pv, ULONG cb, ULONG *pcbRead )
+        HRESULT STDMETHODCALLTYPE Read( void *pv, ULONG cb, ULONG *pcbRead )
         {
             //tracer.Trace( "read called for %d bytes, current offset %lld\n", cb, offset.QuadPart );
             HRESULT hr = S_OK;
@@ -161,13 +161,13 @@ class CIStream : public IStream
             return hr;
         }
 
-        HRESULT Write( const void *pv, ULONG cb, ULONG *pcbWritten ) { return S_OK; }
-        HRESULT Clone( IStream **ppstm ) { tracer.Trace( "clone called\n" ); return S_OK; }
-        HRESULT Commit( DWORD flags ) { return S_OK; }
-        HRESULT CopyTo( IStream *pstm, ULARGE_INTEGER cb, ULARGE_INTEGER *pcbRead, ULARGE_INTEGER *pcbWritten ) { tracer.Trace( "copyto called\n" ); return S_OK; }
-        HRESULT LockRegion( ULARGE_INTEGER libOffset, ULARGE_INTEGER cb, DWORD dwLockType ) { return S_OK; }
-        HRESULT Revert() { return S_OK; }
-        HRESULT Seek( LARGE_INTEGER  dlibMove, DWORD dwOrigin, ULARGE_INTEGER *plibNewPosition )
+        HRESULT STDMETHODCALLTYPE Write( const void *pv, ULONG cb, ULONG *pcbWritten ) { return S_OK; }
+        HRESULT STDMETHODCALLTYPE Clone( IStream **ppstm ) { tracer.Trace( "clone called\n" ); return S_OK; }
+        HRESULT STDMETHODCALLTYPE Commit( DWORD flags ) { return S_OK; }
+        HRESULT STDMETHODCALLTYPE CopyTo( IStream *pstm, ULARGE_INTEGER cb, ULARGE_INTEGER *pcbRead, ULARGE_INTEGER *pcbWritten ) { tracer.Trace( "copyto called\n" ); return S_OK; }
+        HRESULT STDMETHODCALLTYPE LockRegion( ULARGE_INTEGER libOffset, ULARGE_INTEGER cb, DWORD dwLockType ) { return S_OK; }
+        HRESULT STDMETHODCALLTYPE Revert() { return S_OK; }
+        HRESULT STDMETHODCALLTYPE Seek( LARGE_INTEGER  dlibMove, DWORD dwOrigin, ULARGE_INTEGER *plibNewPosition )
         {
             if ( STREAM_SEEK_SET == dwOrigin )
                 offset.QuadPart = dlibMove.QuadPart;
@@ -185,8 +185,8 @@ class CIStream : public IStream
             return S_OK;
         }
 
-        HRESULT SetSize( ULARGE_INTEGER libNewSize ) { return S_OK; }
-        HRESULT Stat( STATSTG *pstatstg, DWORD grfStatFlag )
+        HRESULT STDMETHODCALLTYPE SetSize( ULARGE_INTEGER libNewSize ) { return S_OK; }
+        HRESULT STDMETHODCALLTYPE Stat( STATSTG *pstatstg, DWORD grfStatFlag )
         {
             //tracer.Trace( "stat called\n" );
 
@@ -196,7 +196,7 @@ class CIStream : public IStream
 
             return S_OK;
         }
-        HRESULT UnlockRegion( ULARGE_INTEGER libOffset, ULARGE_INTEGER cb, DWORD dwLockType ) { return S_OK; }
+        HRESULT STDMETHODCALLTYPE UnlockRegion( ULARGE_INTEGER libOffset, ULARGE_INTEGER cb, DWORD dwLockType ) { return S_OK; }
 };
 
 

@@ -442,6 +442,28 @@ HRESULT CreateDeviceSwapChainBitmap( HWND hwnd )
     return hr;
 } //CreateDeviceSwapChainBitmap
 
+static void AdjustSizeToFit( UINT wImg, UINT hImg, int targetW, int targetH, UINT & wOut, UINT & hOut )
+{
+    wOut = wImg;
+    hOut = hImg;
+
+    // Scale the image, sometimes smaller and sometimes larger
+    
+    double winAR = (double) targetW / (double) targetH;
+    double imgAR = (double) wImg / (double) hImg;
+    
+    if ( winAR > imgAR )
+    {
+        hOut = targetH;
+        wOut = (UINT) round( (double) targetH / (double) hImg * (double) wImg );
+    }
+    else
+    {
+        wOut = targetW;
+        hOut = (UINT) round( (double) targetW / (double) wImg * (double) hImg );
+    }
+} //AdjustSizeToFit
+
 HRESULT CreateTargetAndD2DBitmap( HWND hwnd )
 {
     HRESULT hr = S_OK;
@@ -471,6 +493,72 @@ HRESULT CreateTargetAndD2DBitmap( HWND hwnd )
 
     if ( FAILED( hr ) )
         tracer.Trace( "CreateBitmapFromWicBitmap failed with %#x\n", hr );
+
+    // On low-memory machines, scale the bitmap to the desktop size.
+    // Windows 10 runs on machines with 1G of RAM, and the error is sometimes out of memory and sometimes invalid parameter.
+
+    if ( HRESULT_FROM_WIN32( ERROR_OUTOFMEMORY ) == hr || HRESULT_FROM_WIN32( ERROR_INVALID_PARAMETER ) == hr )
+    {
+        RECT rectDesk;
+        GetWindowRect( GetDesktopWindow(), &rectDesk );
+
+        UINT width = 0;
+        UINT height = 0;
+        g_BitmapSource->GetSize( &width, &height );
+
+        UINT w, h;
+        AdjustSizeToFit( width, height, rectDesk.right - rectDesk.left, rectDesk.bottom - rectDesk.top, w, h );
+        
+        ComPtr<IWICBitmapScaler> scaler;
+        hr = g_IWICFactory->CreateBitmapScaler( scaler.GetAddressOf() );
+        if ( FAILED( hr ) )
+        {
+            tracer.Trace( "can't create bitmap scaler to downres image: %#x\n", hr );
+            return hr;
+        }
+        
+        hr = scaler->Initialize( g_BitmapSource.Get(), w, h, WICBitmapInterpolationModeHighQualityCubic );
+        if ( FAILED( hr ) )
+        {
+            tracer.Trace( "can't initialize bitmap scaler to downres image: %#x\n", hr );
+            return hr;
+        }
+        
+        ComPtr<IWICFormatConverter> converter;
+        hr = g_IWICFactory->CreateFormatConverter( converter.GetAddressOf() );
+        if ( FAILED( hr ) )
+        {
+            tracer.Trace( "can't create format converter to downres image: %#x\n", hr );
+            return hr;
+        }
+        
+        hr = converter->Initialize( scaler.Get(), GUID_WICPixelFormat32bppBGR, WICBitmapDitherTypeNone, NULL, 0.f, WICBitmapPaletteTypeCustom );
+        if ( FAILED( hr ) )
+        {
+            tracer.Trace( "can't initialize converter to downres image: %#x\n", hr );
+            return hr;
+        }
+        
+        ComPtr<IWICBitmapSource> scaledSource;
+        hr = converter->QueryInterface( IID_PPV_ARGS( scaledSource.GetAddressOf() ) );
+        if ( FAILED( hr ) )
+        {
+            tracer.Trace( "can't QI converter to downres image: %#x\n", hr );
+            return hr;
+        }
+
+        g_BitmapSource.Reset();
+        g_BitmapSource.Attach( scaledSource.Detach() );
+        
+        hr = g_target->CreateBitmapFromWicBitmap( g_BitmapSource.Get(), NULL, g_D2DBitmap.GetAddressOf() );
+        if ( FAILED( hr ) )
+        {
+            tracer.Trace( "CreateBitmapFromWicBitmap with downres image failed with %#x\n", hr );
+            return hr;
+        }
+
+        tracer.Trace( "successfully scaled a bitmap to recover from out of memory\n" );
+    }
 
     return hr;
 } //CreateTargetAndD2DBitmap
@@ -1535,8 +1623,8 @@ LRESULT CALLBACK WindowProc( HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam 
             // the values can be negative for multi-mon, so cast the WORDs apprriately
 
             POINT pt;
-            pt.x = (LONG) (short) LOWORD (lParam);
-            pt.y = (LONG) (short) HIWORD (lParam);
+            pt.x = (LONG) (short) LOWORD( lParam );
+            pt.y = (LONG) (short) HIWORD( lParam );
 
             if ( -1 == pt.x && -1 == pt.y )
                 GetCursorPos( &pt );
