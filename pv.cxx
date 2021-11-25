@@ -478,7 +478,11 @@ HRESULT CreateTargetAndD2DBitmap( HWND hwnd )
         hr = CreateDeviceSwapChainBitmap( hwnd );
 
         if ( FAILED( hr ) )
+        {
             tracer.Trace( "CreateDeviceSwapChainBitmap failed with %#x\n", hr );
+            g_D2DBitmap.Reset();
+            return hr;
+        }
     }
 
     CTimed timedD2DB( timeD2DB );
@@ -1410,6 +1414,8 @@ LRESULT CALLBACK WindowProc( HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam 
 
                 if ( slideShowActive )
                 {
+                    // turn it off then turn it on again to enable the new delay
+
                     SendMessage( hwnd, WM_CHAR, 's', 0 );
                     SendMessage( hwnd, WM_CHAR, 's', 0 );
                 }
@@ -1620,7 +1626,7 @@ LRESULT CALLBACK WindowProc( HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam 
 
         case WM_CONTEXTMENU:
         {
-            // the values can be negative for multi-mon, so cast the WORDs apprriately
+            // the values can be negative for multi-mon, so cast the WORDs appropriately
 
             POINT pt;
             pt.x = (LONG) (short) LOWORD( lParam );
@@ -1814,9 +1820,8 @@ int WINAPI wWinMain( HINSTANCE hInstance, HINSTANCE, PWSTR pCmdLine, int nCmdSho
     static WCHAR awcPhotoPath[ MAX_PATH + 2 ] = { 0 };
     static WCHAR awcInput[ MAX_PATH ] = { 0 };
     static WCHAR awcStartingPhoto[ MAX_PATH + 2 ] = { 0 };
-    static WCHAR awcPos[ 100 ];
-    static WCHAR awcExtension[ 100 ];
-    awcExtension[0] = 0;
+    static WCHAR awcPos[ 100 ] = { 0 };
+    static WCHAR awcExtension[ 100 ] = { 0 };
 
     SetProcessDpiAwarenessContext( DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 );
 

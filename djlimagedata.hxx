@@ -1329,7 +1329,7 @@ private:
     
     // Heif and CR3 use ISO Base Media File Format ISO/IEC 14496-12. This function walks those files and pulls out data including Exif offsets
     
-    void EnumerateBoxes( HeifStream * hs, DWORD depth )
+    void EnumerateBoxes( HeifStream & hs, DWORD depth )
     {
         //tracer.Trace( "EnumerateBoxes at depth %d\n", depth );
     
@@ -1339,16 +1339,16 @@ private:
     
         do
         {
-            if ( ( 0 == hs->Length() ) || ( offset >= hs->Length() ) )
+            if ( ( 0 == hs.Length() ) || ( offset >= hs.Length() ) )
                 break;
     
             __int64 boxOffset = offset;
-            ULONGLONG boxLen = hs->GetDWORD( offset, false );
+            ULONGLONG boxLen = hs.GetDWORD( offset, false );
     
             if ( 0 == boxLen )
                 break;
     
-            DWORD dwTag = hs->GetDWORD( offset, false );
+            DWORD dwTag = hs.GetDWORD( offset, false );
             char tag[ 5 ];
             tag[ 3 ] = dwTag & 0xff;
             tag[ 2 ] = ( dwTag >> 8 ) & 0xff;
@@ -1358,8 +1358,8 @@ private:
     
             if ( 1 == boxLen )
             {
-                ULONGLONG high = hs->GetDWORD( offset, false );
-                ULONGLONG low = hs->GetDWORD( offset, false );
+                ULONGLONG high = hs.GetDWORD( offset, false );
+                ULONGLONG low = hs.GetDWORD( offset, false );
     
                 boxLen = ( high << 32 ) | low;
             }
@@ -1373,22 +1373,22 @@ private:
             {
                 char brand[ 5 ];
                 for ( int i = 0; i < 4; i++ )
-                    brand[ i ] = (char) hs->GetBYTE( offset );
+                    brand[ i ] = (char) hs.GetBYTE( offset );
                 brand[ 4 ] = 0;
     
-                DWORD version = hs->GetDWORD( offset, false );
+                DWORD version = hs.GetDWORD( offset, false );
             }
             else if ( !strcmp( tag, "meta" ) )
             {
-                DWORD data = hs->GetDWORD( offset, true );
+                DWORD data = hs.GetDWORD( offset, true );
     
-                HeifStream hsChild( hs->Stream(), hs->Offset() + offset, boxLen - ( offset - boxOffset ) );
+                HeifStream hsChild( hs.Stream(), hs.Offset() + offset, boxLen - ( offset - boxOffset ) );
     
-                EnumerateBoxes( &hsChild, depth + 1 );
+                EnumerateBoxes( hsChild, depth + 1 );
             }
             else if ( !strcmp( tag, "iinf" ) )
             {
-                DWORD data = hs->GetDWORD( offset, false );
+                DWORD data = hs.GetDWORD( offset, false );
                 BYTE version = (BYTE) ( ( data >> 24 ) & 0xff );
                 DWORD flags = data & 0x00ffffff;
     
@@ -1396,27 +1396,27 @@ private:
                 DWORD entries = 0;
     
                 if ( 2 == entriesSize )
-                    entries = hs->GetWORD( offset, false );
+                    entries = hs.GetWORD( offset, false );
                 else
-                    entries = hs->GetDWORD( offset, false );
+                    entries = hs.GetDWORD( offset, false );
     
                 if ( entries > 0 )
                 {
-                    HeifStream hsChild( hs->Stream(), hs->Offset() + offset, boxLen - ( offset - boxOffset ) );
+                    HeifStream hsChild( hs.Stream(), hs.Offset() + offset, boxLen - ( offset - boxOffset ) );
     
-                    EnumerateBoxes( &hsChild, depth + 1 );
+                    EnumerateBoxes( hsChild, depth + 1 );
                 }
             }
             else if ( !strcmp( tag, "infe" ) )
             {
-                DWORD data = hs->GetDWORD( offset, false );
+                DWORD data = hs.GetDWORD( offset, false );
                 BYTE version = (BYTE) ( ( data >> 24 ) & 0xff );
                 DWORD flags = data & 0x00ffffff;
     
                 if ( version <= 1 )
                 {
-                    WORD itemID = hs->GetWORD( offset, false );
-                    WORD itemProtection = hs->GetWORD( offset, false );
+                    WORD itemID = hs.GetWORD( offset, false );
+                    WORD itemProtection = hs.GetWORD( offset, false );
                 }
                 else if ( version >= 2 )
                 {
@@ -1425,15 +1425,15 @@ private:
                     ULONG itemID = 0;
     
                     if ( 2 == version )
-                        itemID = hs->GetWORD( offset, false );
+                        itemID = hs.GetWORD( offset, false );
                     else
-                        itemID = hs->GetDWORD( offset, false );
+                        itemID = hs.GetDWORD( offset, false );
     
-                    WORD protectionIndex = hs->GetWORD( offset, false );
+                    WORD protectionIndex = hs.GetWORD( offset, false );
     
                     char itemType[ 5 ];
                     for ( int i = 0; i < 4; i++ )
-                        itemType[ i ] = hs->GetBYTE( offset );
+                        itemType[ i ] = hs.GetBYTE( offset );
                     itemType[ 4 ] = 0;
     
                     if ( !strcmp( itemType, "Exif" ) )
@@ -1442,11 +1442,11 @@ private:
             }
             else if ( !strcmp( tag, "iloc" ) )
             {
-                DWORD data = hs->GetDWORD( offset, false );
+                DWORD data = hs.GetDWORD( offset, false );
                 BYTE version = (BYTE) ( ( data >> 24 ) & 0xff );
                 DWORD flags = data & 0x00ffffff;
     
-                WORD values4 = hs->GetWORD( offset, false );
+                WORD values4 = hs.GetWORD( offset, false );
                 int offsetSize = ( values4 >> 12 ) & 0xf;
                 int lengthSize = ( values4 >> 8 ) & 0xf;
                 int baseOffsetSize = ( values4 >> 4 ) & 0xf;
@@ -1458,45 +1458,45 @@ private:
                 int itemCount = 0;
     
                 if ( version < 2 )
-                    itemCount = hs->GetWORD( offset, false );
+                    itemCount = hs.GetWORD( offset, false );
                 else
-                    itemCount = hs->GetDWORD( offset, false );
+                    itemCount = hs.GetDWORD( offset, false );
     
                 for ( int i = 0; i < itemCount; i++ )
                 {
                     int itemID = 0;
     
                     if ( version < 2 )
-                        itemID = hs->GetWORD( offset, false );
+                        itemID = hs.GetWORD( offset, false );
                     else
-                        itemID = hs->GetWORD( offset, false );
+                        itemID = hs.GetWORD( offset, false );
     
                     BYTE constructionMethod = 0;
     
                     if ( version >= 1 )
                     {
-                        values4 = hs->GetWORD( offset, false );
+                        values4 = hs.GetWORD( offset, false );
     
                         constructionMethod = ( values4 & 0xf );
                     }
     
-                    WORD dataReferenceIndex = hs->GetWORD( offset, false );
+                    WORD dataReferenceIndex = hs.GetWORD( offset, false );
     
                     __int64 baseOffset = 0;
     
                     if ( 4 == baseOffsetSize )
                     {
-                        baseOffset = hs->GetDWORD( offset, false );
+                        baseOffset = hs.GetDWORD( offset, false );
                     }
                     else if ( 8 == baseOffsetSize )
                     {
-                        __int64 high = hs->GetDWORD( offset, false );
-                        __int64 low = hs->GetDWORD( offset, false );
+                        __int64 high = hs.GetDWORD( offset, false );
+                        __int64 low = hs.GetDWORD( offset, false );
     
                         baseOffset = ( high << 32 ) | low;
                     }
     
-                    WORD extentCount = hs->GetWORD( offset, false );
+                    WORD extentCount = hs.GetWORD( offset, false );
     
                     for ( int e = 0; e < extentCount; e++ )
                     {
@@ -1508,12 +1508,12 @@ private:
                         {
                             if ( 4 == indexSize )
                             {
-                                extentIndex = hs->GetDWORD( offset, false );
+                                extentIndex = hs.GetDWORD( offset, false );
                             }
                             else if ( 8 == indexSize )
                             {
-                                __int64 high = hs->GetDWORD( offset, false );
-                                __int64 low = hs->GetDWORD( offset, false );
+                                __int64 high = hs.GetDWORD( offset, false );
+                                __int64 low = hs.GetDWORD( offset, false );
     
                                 extentIndex = ( high << 32 ) | low;
                             }
@@ -1521,24 +1521,24 @@ private:
     
                         if ( 4 == offsetSize )
                         {
-                            extentOffset = hs->GetDWORD( offset, false );
+                            extentOffset = hs.GetDWORD( offset, false );
                         }
                         else if ( 8 == offsetSize )
                         {
-                            __int64 high = hs->GetDWORD( offset, false );
-                            __int64 low = hs->GetDWORD( offset, false );
+                            __int64 high = hs.GetDWORD( offset, false );
+                            __int64 low = hs.GetDWORD( offset, false );
     
                             extentOffset = ( high << 32 ) | low;
                         }
     
                         if ( 4 == lengthSize )
                         {
-                            extentLength = hs->GetDWORD( offset, false );
+                            extentLength = hs.GetDWORD( offset, false );
                         }
                         else if ( 8 == lengthSize )
                         {
-                            __int64 high = hs->GetDWORD( offset, false );
-                            __int64 low = hs->GetDWORD( offset, false );
+                            __int64 high = hs.GetDWORD( offset, false );
+                            __int64 low = hs.GetDWORD( offset, false );
     
                             extentLength = ( high << 32 ) | low;
                         }
@@ -1553,44 +1553,44 @@ private:
             }
             else if ( !strcmp( tag, "hvcC" ) )
             {
-                BYTE version = hs->GetBYTE( offset );
-                BYTE byteInfo = hs->GetBYTE( offset );
+                BYTE version = hs.GetBYTE( offset );
+                BYTE byteInfo = hs.GetBYTE( offset );
                 BYTE profileSpace = ( byteInfo >> 6 ) & 3;
                 bool tierFlag = 0 != ( ( byteInfo >> 4 ) & 0x1 );
                 BYTE  profileIDC = byteInfo & 0x1f;
     
-                DWORD profileCompatibilityFlags = hs->GetDWORD( offset, false );
+                DWORD profileCompatibilityFlags = hs.GetDWORD( offset, false );
     
                 for ( int i = 0; i < 6; i++ )
                 {
-                    BYTE b = hs->GetBYTE( offset );
+                    BYTE b = hs.GetBYTE( offset );
                 }
     
-                BYTE generalLevelIDC = hs->GetBYTE( offset );
-                WORD minSpacialSegmentationIDC = hs->GetWORD( offset, false ) & 0xfff;
-                BYTE parallelismType = hs->GetBYTE( offset ) & 0x3;
-                BYTE chromaFormat = hs->GetBYTE( offset ) & 0x3;
-                BYTE bitDepthLuma = ( hs->GetBYTE( offset ) & 0x7 ) + 8;
-                BYTE bitDepthChroma = ( hs->GetBYTE( offset ) & 0x7 ) + 8;
-                WORD avgFrameRate = hs->GetWORD( offset, false );
+                BYTE generalLevelIDC = hs.GetBYTE( offset );
+                WORD minSpacialSegmentationIDC = hs.GetWORD( offset, false ) & 0xfff;
+                BYTE parallelismType = hs.GetBYTE( offset ) & 0x3;
+                BYTE chromaFormat = hs.GetBYTE( offset ) & 0x3;
+                BYTE bitDepthLuma = ( hs.GetBYTE( offset ) & 0x7 ) + 8;
+                BYTE bitDepthChroma = ( hs.GetBYTE( offset ) & 0x7 ) + 8;
+                WORD avgFrameRate = hs.GetWORD( offset, false );
             }
             else if ( !strcmp( tag, "iprp" ) )
             {
-                HeifStream hsChild( hs->Stream(), hs->Offset() + offset, boxLen - ( offset - boxOffset ) );
+                HeifStream hsChild( hs.Stream(), hs.Offset() + offset, boxLen - ( offset - boxOffset ) );
     
-                EnumerateBoxes( &hsChild, depth + 1 );
+                EnumerateBoxes( hsChild, depth + 1 );
             }
             else if ( !strcmp( tag, "ipco" ) )
             {
-                HeifStream hsChild( hs->Stream(), hs->Offset() + offset, boxLen - ( offset - boxOffset ) );
+                HeifStream hsChild( hs.Stream(), hs.Offset() + offset, boxLen - ( offset - boxOffset ) );
     
-                EnumerateBoxes( &hsChild, depth + 1 );
+                EnumerateBoxes( hsChild, depth + 1 );
             }
             else if ( !strcmp( tag, "moov" ) ) // Canon CR3 format
             {
-                HeifStream hsChild( hs->Stream(), hs->Offset() + offset, boxLen - ( offset - boxOffset ) );
+                HeifStream hsChild( hs.Stream(), hs.Offset() + offset, boxLen - ( offset - boxOffset ) );
     
-                EnumerateBoxes( &hsChild, depth + 1 );
+                EnumerateBoxes( hsChild, depth + 1 );
             }
             else if ( !strcmp( tag, "uuid" ) )
             {
@@ -1599,7 +1599,7 @@ private:
     
                 for ( size_t i = 0; i < 16; i++ )
                 {
-                    BYTE x = hs->GetBYTE( offset );
+                    BYTE x = hs.GetBYTE( offset );
                     sprintf_s( acGUID + i * 2, 3, "%02x", x );
                 }
     
@@ -1607,54 +1607,54 @@ private:
                 {
                     // Canon CR3, will contain CNCV, CCTP, CTBO, CMT1, CMD2, CMD3, CMT4, etc.
     
-                    HeifStream hsChild( hs->Stream(), hs->Offset() + offset, boxLen - ( offset - boxOffset ) );
+                    HeifStream hsChild( hs.Stream(), hs.Offset() + offset, boxLen - ( offset - boxOffset ) );
     
-                    EnumerateBoxes( &hsChild, depth + 1 );
+                    EnumerateBoxes( hsChild, depth + 1 );
                 }
     
                 if ( !strcmp( "eaf42b5e1c984b88b9fbb7dc406e4d16", acGUID ) )
                 {
                     // preview data -- a reduced-resolution jpg
     
-                    HeifStream hsChild( hs->Stream(), hs->Offset() + offset, boxLen - ( offset - boxOffset ) );
+                    HeifStream hsChild( hs.Stream(), hs.Offset() + offset, boxLen - ( offset - boxOffset ) );
     
-                    EnumerateBoxes( &hsChild, depth + 1 );
+                    EnumerateBoxes( hsChild, depth + 1 );
                 }
             }
             else if ( !strcmp( tag, "CMT1" ) )
             {
-                g_Canon_CR3_Exif_IFD0 = hs->Offset() + offset;
+                g_Canon_CR3_Exif_IFD0 = hs.Offset() + offset;
             }
             else if ( !strcmp( tag, "CMT2" ) )
             {
-                g_Canon_CR3_Exif_Exif_IFD = hs->Offset() + offset;
+                g_Canon_CR3_Exif_Exif_IFD = hs.Offset() + offset;
             }
             else if ( !strcmp( tag, "CMT3" ) )
             {
-                g_Canon_CR3_Exif_Makernotes_IFD = hs->Offset() + offset;
+                g_Canon_CR3_Exif_Makernotes_IFD = hs.Offset() + offset;
             }
             else if ( !strcmp( tag, "CMT4" ) )
             {
-                g_Canon_CR3_Exif_GPS_IFD = hs->Offset() + offset;
+                g_Canon_CR3_Exif_GPS_IFD = hs.Offset() + offset;
             }
             else if ( !strcmp( tag, "PRVW" ) )
             {
-                DWORD unk = hs->GetDWORD( offset, false );
-                WORD unkW = hs->GetWORD( offset, false );
-                WORD width = hs->GetWORD( offset, false );
-                WORD height = hs->GetWORD( offset, false );
-                unkW = hs->GetWORD( offset, false );
-                DWORD length = hs->GetDWORD( offset, false );
+                DWORD unk = hs.GetDWORD( offset, false );
+                WORD unkW = hs.GetWORD( offset, false );
+                WORD width = hs.GetWORD( offset, false );
+                WORD height = hs.GetWORD( offset, false );
+                unkW = hs.GetWORD( offset, false );
+                DWORD length = hs.GetDWORD( offset, false );
     
                 // This should work per https://github.com/exiftool/canon_cr3, but it doesn't exist
     
                 g_Embedded_Image_Length = length;
-                g_Embedded_Image_Offset = offset + hs->Offset();
+                g_Embedded_Image_Offset = offset + hs.Offset();
             }
             else if ( !strcmp( tag, "mdat" ) ) // Canon .CR3 main data
             {
-                __int64 jpgOffset = hs->Offset() + offset;
-                DWORD head = hs->GetDWORD( offset, false );
+                __int64 jpgOffset = hs.Offset() + offset;
+                DWORD head = hs.GetDWORD( offset, false );
     
                 if ( ( 0xffd8ffdb == head ) && // looks like JPG
                      ( 0 != g_Canon_CR3_Embedded_JPG_Length ) )
@@ -1665,23 +1665,23 @@ private:
             }
             else if ( !strcmp( tag, "trak" ) ) // Canon .CR3 metadata
             {
-                HeifStream hsChild( hs->Stream(), hs->Offset() + offset, boxLen - ( offset - boxOffset ) );
-                EnumerateBoxes( &hsChild, depth + 1 );
+                HeifStream hsChild( hs.Stream(), hs.Offset() + offset, boxLen - ( offset - boxOffset ) );
+                EnumerateBoxes( hsChild, depth + 1 );
             }
             else if ( !strcmp( tag, "mdia" ) ) // Canon .CR3 metadata
             {
-                HeifStream hsChild( hs->Stream(), hs->Offset() + offset, boxLen - ( offset - boxOffset ) );
-                EnumerateBoxes( &hsChild, depth + 1 );
+                HeifStream hsChild( hs.Stream(), hs.Offset() + offset, boxLen - ( offset - boxOffset ) );
+                EnumerateBoxes( hsChild, depth + 1 );
             }
             else if ( !strcmp( tag, "minf" ) ) // Canon .CR3 metadata
             {
-                HeifStream hsChild( hs->Stream(), hs->Offset() + offset, boxLen - ( offset - boxOffset ) );
-                EnumerateBoxes( &hsChild, depth + 1 );
+                HeifStream hsChild( hs.Stream(), hs.Offset() + offset, boxLen - ( offset - boxOffset ) );
+                EnumerateBoxes( hsChild, depth + 1 );
             }
             else if ( !strcmp( tag, "stbl" ) ) // Canon .CR3 metadata
             {
-                HeifStream hsChild( hs->Stream(), hs->Offset() + offset, boxLen - ( offset - boxOffset ) );
-                EnumerateBoxes( &hsChild, depth + 1 );
+                HeifStream hsChild( hs.Stream(), hs.Offset() + offset, boxLen - ( offset - boxOffset ) );
+                EnumerateBoxes( hsChild, depth + 1 );
             }
             else if ( !strcmp( tag, "stsz" ) ) // Canon .CR3 metadata
             {
@@ -1691,7 +1691,7 @@ private:
     
                 for ( int i = 0; i < 5; i++ )
                 {
-                    DWORD len = hs->GetDWORD( offset, false );
+                    DWORD len = hs.GetDWORD( offset, false );
     
                     if ( ( 3 == i ) && ( 0 == g_Canon_CR3_Embedded_JPG_Length ) )
                         g_Canon_CR3_Embedded_JPG_Length = len;
@@ -1710,7 +1710,7 @@ private:
         __int64 length = pStream->Length();
         HeifStream hs( pStream, 0, length );
     
-        EnumerateBoxes( &hs, 0 );
+        EnumerateBoxes( hs, 0 );
     } //EnumerateHeif
     
     void EnumerateIFD0( int depth, __int64 IFDOffset, __int64 headerBase, bool littleEndian, WCHAR const * pwcExt )
@@ -2062,7 +2062,7 @@ private:
                 }
 
                 // BUGMAGNET: ALERT
-                // Since these are the only two fields required from JPG files, break out
+                // Since these are the only two fields required from PNG files, break out
                 // of the loop after we get them. If any other data is required, remove
                 // this break!
 
