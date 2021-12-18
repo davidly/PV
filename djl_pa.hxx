@@ -1,8 +1,8 @@
+#pragma once
+
 //
 // Wrapper for vector that stores paths and file information
 //
-
-#pragma once
 
 #include "djltrace.hxx"
 
@@ -139,11 +139,32 @@ class CPathArray
             qsort( elements.data(), elements.size(), sizeof PathItem, PIPathCompare );
         } //SortOnPath
 
+        void InvertSort()
+        {
+            size_t t = 0;
+            size_t b = elements.size() - 1;
+
+            while ( t < b )
+                swap( elements[ t++ ], elements[ b-- ] );
+        } //InvertSort
+
         void Add( WCHAR * pwc, FILETIME & creation, FILETIME & lastWrite )
         {
             PathItem pi;
             pi.ftCreation = creation;
             pi.ftLastWrite = lastWrite;
+            size_t len = 1 + wcslen( pwc );
+            pi.pwcPath = new WCHAR[ len ];
+            wcscpy_s( pi.pwcPath, len, pwc );
+
+            lock_guard<mutex> lock( mtx );
+
+            elements.push_back( pi );
+        } //Add
+
+        void Add( WCHAR * pwc )
+        {
+            PathItem pi = {};
             size_t len = 1 + wcslen( pwc );
             pi.pwcPath = new WCHAR[ len ];
             wcscpy_s( pi.pwcPath, len, pwc );

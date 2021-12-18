@@ -1,9 +1,8 @@
+#pragma once
+
 //
 // This class exists to isolate all libraw dependencies into a single file
 //
-
-#pragma once
-
 // Undefine these two to link to libraw.dll.
 // Define these two to statically link to libraw_static.lib.
 

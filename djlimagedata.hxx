@@ -1,3 +1,5 @@
+#pragma once
+
 //
 // This code extracts a subset of metadata in image files. It's not intended to be exhaustive;
 // it just pulls out the data absolutely required by calling apps.
@@ -5,8 +7,6 @@
 // Multi-threaded runtime is:   48% in ReadFile,   28% in CreateFile, 4% in CloseHandle, 1.0% in SetFilePointerEx, 0.6% in GetFileSizeEx.
 //
 // This code reduces the calls to ReadFile at the expense of some clarity.
-
-#pragma once
 
 #include <windows.h>
 #include <shlwapi.h>

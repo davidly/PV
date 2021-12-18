@@ -1,3 +1,5 @@
+#pragma once
+
 // In one source file, declare the CDJLTrace named tracer like this:
 //    CDJLTrace tracer;
 // When the app starts, enable tracing like this:
@@ -6,8 +8,6 @@
 // Arguments to Trace() are just like printf. e.g.:
 //    tracer.Trace( "what to log with an integer argument %d and a wide string %ws\n", 10, pwcHello );
 //
-
-#pragma once
 
 #include <stdio.h>
 #include <mutex>
@@ -21,9 +21,8 @@ class CDJLTrace
         std::mutex mtx;
 
     public:
-        CDJLTrace()
+        CDJLTrace() : fp( NULL )
         {
-            fp = NULL;
         }
 
         bool Enable( bool enable, const WCHAR * pwcLogFile = NULL, bool destroyContents = false )
@@ -32,7 +31,7 @@ class CDJLTrace
 
             if ( enable )
             {
-                WCHAR * mode = destroyContents ? L"w+t" : L"a+t";
+                const WCHAR * mode = destroyContents ? L"w+t" : L"a+t";
 
                 if ( NULL == pwcLogFile )
                 {
@@ -46,7 +45,7 @@ class CDJLTrace
                     if ( result > available || 0 == result )
                         return false;
 
-                    wcscat( tempPath.get(), pwcFile );
+                    wcscat_s( tempPath.get(), MAX_PATH - result, pwcFile );
                     fp = _wfsopen( tempPath.get(), mode, _SH_DENYWR );
                 }
                 else

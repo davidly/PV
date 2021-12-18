@@ -1,3 +1,5 @@
+#pragma once
+
 //
 // Minimal functions to read and write registry values for application state
 //

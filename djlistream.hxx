@@ -1,8 +1,8 @@
+#pragma once
+
 //
 // Implement IStream sufficiently for WIC to open images.
 //
-
-#pragma once
 
 class CIStream : public IStream
 {

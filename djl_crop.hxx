@@ -1,3 +1,5 @@
+#pragma once
+
 //
 // Hard-coded crop factors for various cameras.
 // The list of cameras is not exhaustive by any stretch.

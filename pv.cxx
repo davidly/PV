@@ -1022,7 +1022,7 @@ void PutBitmapInClipboard()
         if ( sizeof ds == GetObject( hbm, sizeof ds, &ds ) )
         {
             HDC hdc = GetDC( HWND_DESKTOP );
-            HBITMAP hdib = CreateDIBitmap( hdc, &ds.dsBmih, CBM_INIT, ds.dsBm.bmBits, (BITMAPINFO *) &ds.dsBmih, DIB_RGB_COLORS );
+            HBITMAP hdib = CreateDIBitmap( hdc, &ds.dsBmih, CBM_INIT, ds.dsBm.bmBits, (BITMAPINFO *) & ds.dsBmih, DIB_RGB_COLORS );
             ReleaseDC( HWND_DESKTOP, hdc );
     
             if ( NULL != hdib )
@@ -1076,7 +1076,7 @@ extern "C" INT_PTR WINAPI HelpDialogProc( HWND hdlg, UINT message, WPARAM wParam
                                      "\t-t\t\tdebug tracing to %temp%\\tracer.txt. t=append T=overwrite\n"
                                      "\n"
                                      "mouse:\n"
-                                     "\tleft-click\tdisplay 1:1 pixel for pixel\n"
+                                     "\tleft-click \tdisplay 1:1 pixel for pixel\n"
                                      "\tctrl+left-click\tdisplay 4:1 pixel for pixel\n"
                                      "\tright-click\tcontext menu\n"
                                      "\n"
@@ -1088,7 +1088,7 @@ extern "C" INT_PTR WINAPI HelpDialogProc( HWND hdlg, UINT message, WPARAM wParam
                                      "\tm\t\tshow GPS coordinates (if any) in Google Maps\n"
                                      "\tn\t\tnext image (also right arrow)\n"
                                      "\tp\t\tprevious image (also left arrow)\n"
-                                     "\tq or esc\tquit the app\n"
+                                     "\tq or esc   \tquit the app\n"
                                      "\tr\t\trotate image right\n"
                                      "\ts\t\tstart or stop slideshow\n"
                                      "\tF11\t\tenter or exit full-screen mode\n"
@@ -1628,14 +1628,11 @@ LRESULT CALLBACK WindowProc( HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam 
         {
             // the values can be negative for multi-mon, so cast the WORDs appropriately
 
-            POINT pt;
-            pt.x = (LONG) (short) LOWORD( lParam );
-            pt.y = (LONG) (short) HIWORD( lParam );
-
+            POINT pt = { (LONG) (short) LOWORD( lParam ), (LONG) (short) HIWORD( lParam ) };
             if ( -1 == pt.x && -1 == pt.y )
                 GetCursorPos( &pt );
 
-            //tracer.Trace( "context menu pt.x: %d, pt.y: %d\n", pt.x, pt.y );
+            tracer.Trace( "context menu pt.x: %d, pt.y: %d\n", pt.x, pt.y );
 
             int delayIndex = 0;
             for ( int i = 0; i < _countof( g_validDelays ); i++ )

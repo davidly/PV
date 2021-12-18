@@ -1,3 +1,5 @@
+#pragma once
+
 #include <winbase.h>
 #include <chrono>
 

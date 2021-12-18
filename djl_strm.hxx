@@ -1,8 +1,8 @@
+#pragma once
+
 //
 // Stream over a file or subset of a file
 //
-
-#pragma once
 
 class CStream
 {
@@ -13,22 +13,30 @@ class CStream
         HANDLE hFile;
         bool handleOwned;
         bool seekCalled;
+        bool forWrite;
 
     public:
-        CStream( WCHAR const * pwcFile )
+        CStream( WCHAR const * pwcFile, bool write = false )
         {
             embedOffset = 0;
             length = 0;
             offset = 0;
             seekCalled = false;
             handleOwned = true;
-            hFile = CreateFile( pwcFile, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, 0, 0 );
+            forWrite = write;
 
-            if ( INVALID_HANDLE_VALUE != hFile )
+            if ( forWrite )
+                hFile = CreateFile( pwcFile, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, CREATE_ALWAYS, 0, 0 );
+            else
             {
-                LARGE_INTEGER liSize;
-                GetFileSizeEx( hFile, &liSize );
-                length = liSize.QuadPart;
+                hFile = CreateFile( pwcFile, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, 0, 0 );
+
+                if ( INVALID_HANDLE_VALUE != hFile )
+                {
+                    LARGE_INTEGER liSize;
+                    GetFileSizeEx( hFile, &liSize );
+                    length = liSize.QuadPart;
+                }
             }
         } //CStream
 
@@ -40,6 +48,7 @@ class CStream
             seekCalled = true; // don't trust where this handle has been
             handleOwned = false;
             hFile = h;
+            forWrite = false;
 
             LARGE_INTEGER liSize;
             BOOL ok = GetFileSizeEx( hFile, &liSize );
@@ -60,6 +69,7 @@ class CStream
             offset = 0;
             seekCalled = true; // need to get to virtual 0 on first read
             handleOwned = true;
+            forWrite = false;
             hFile = CreateFile( pwcFile, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, 0 );
 
             if ( INVALID_HANDLE_VALUE == hFile )
@@ -88,10 +98,18 @@ class CStream
              }
         } //CStream
 
-        ~CStream()
+        void CloseFile()
         {
             if ( handleOwned && INVALID_HANDLE_VALUE != hFile )
+            {
                 CloseHandle( hFile );
+                hFile = INVALID_HANDLE_VALUE;
+            }
+        } //CloseFile
+
+        ~CStream()
+        {
+            CloseFile();
         }
 
         ULONG Read( void *pv, ULONG cb )
@@ -138,11 +156,45 @@ class CStream
             }
 
             return true;
-        }
+        } //Seek
 
         bool Ok() { return ( INVALID_HANDLE_VALUE != hFile ); }
         __int64 Tell() { return offset; }
         __int64 Length() { return length; }
         bool AtEOF() { return ( offset >= length ); }
+
+        void GetBytes( __int64 offset, void * pData, int byteCount )
+        {
+            memset( pData, 0, byteCount );
+
+            if ( Seek( offset ) )
+                Read( pData, byteCount );
+        } //GetBytes
+
+        ULONG Write( void *pv, ULONG cb )
+        {
+            if ( seekCalled )
+            {
+                LARGE_INTEGER li;
+                li.QuadPart = offset + embedOffset;
+                SetFilePointerEx( hFile, li, NULL, FILE_BEGIN );
+                seekCalled = false;
+            }
+
+            DWORD dwWritten = 0;
+            BOOL ok = WriteFile( hFile, pv, cb, &dwWritten, NULL );
+
+            if ( ok )
+            {
+                offset += dwWritten;
+
+                if ( offset > length )
+                    length = offset;
+            }
+            else
+                cb = 0;
+
+            return cb;
+        } //Write
 };
 

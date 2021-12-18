@@ -1,8 +1,8 @@
+#pragma once
+
 //
 // Enumerate the filesystem to build a list of paths matching a criteria
 //
-
-#pragma once
 
 #include <windows.h>
 #include <windowsx.h>
