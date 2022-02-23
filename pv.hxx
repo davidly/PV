@@ -18,6 +18,8 @@
 #define ID_PV_SLIDESHOW_60          214
 #define ID_PV_SLIDESHOW_600         215
 
+#define ID_PV_HELP                  216
+
 #define ID_PV_HELP_DIALOG           300
 #define ID_PV_HELP_DIALOG_TEXT      301
 

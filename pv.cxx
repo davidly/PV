@@ -951,7 +951,7 @@ HBITMAP CreateHBITMAP( IWICBitmapSource & bitmap )
     const UINT cbImage = cbStride * height;
     bitmap.CopyPixels( NULL, cbStride, cbImage, static_cast<BYTE *>( pvImageBits ) );
 
-    // It's upside down, because of course HBITMAPs are upside down.
+    // It's upside down, because of course HBITMAPs are upside down. I tried using -height and it didn't help.
 
     if ( height > 1 )
     {
@@ -1406,6 +1406,8 @@ LRESULT CALLBACK WindowProc( HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam 
                 SendMessage( hwnd, WM_KEYDOWN, VK_LEFT, 0 );
             else if ( ID_PV_FULLSCREEN == wParam )
                 SendMessage( hwnd, WM_KEYDOWN, VK_F11, 0 );
+            else if ( ID_PV_HELP == wParam )
+                SendMessage( hwnd, WM_KEYDOWN, VK_F1, 0 );
             else if ( wParam >= ID_PV_SLIDESHOW_ASAP && wParam <= ID_PV_SLIDESHOW_600 )
             {
                 int delayIndex = (int) wParam - ID_PV_SLIDESHOW_ASAP;
