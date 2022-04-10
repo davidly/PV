@@ -16,6 +16,17 @@ class CStream
         bool forWrite;
 
     public:
+        CStream()
+        {
+            length = 0;
+            offset = 0;
+            embedOffset = 0;
+            hFile = INVALID_HANDLE_VALUE;
+            handleOwned = false;
+            seekCalled = false;
+            forWrite = false;
+        } //CStream
+
         CStream( WCHAR const * pwcFile, bool write = false )
         {
             embedOffset = 0;

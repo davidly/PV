@@ -173,6 +173,7 @@ private:
     char g_acMake[ 100 ];
     char g_acModel[ 100 ];
     char g_acSerialNumber[ 100 ];
+    bool g_holdsAdobeEditsInXMP;
     
     WORD FixEndianWORD( WORD w, bool littleEndian )
     {
@@ -1843,6 +1844,20 @@ private:
                         g_Embedded_Image_Offset = provisionalEmbeddedJPGOffset;
                     }
                 }
+                else if ( 700 == head.id )
+                {
+                    // XMP Data. Adobe products update (and move and resize) this tag to include edits for DNG, TIFF, and JPG files.
+                    // The data is there instead of in .xmp files, as it is for other RAW formats.
+
+                    if ( head.count > 4 && head.count < 65536 )
+                    {
+                        unique_ptr<byte> bytes( new byte[ head.count + 1 ] );
+                        bytes.get()[ head.count ] = 0; // ensure it'll be null-terminated
+                        GetBytes( head.offset + headerBase, bytes.get(), head.count );
+                        if ( strstr( (char *) bytes.get(), "Adobe XMP Core" ) )
+                            g_holdsAdobeEditsInXMP = true;
+                    }
+                }
                 else if ( 34665 == head.id )
                 {
                     EnumerateExifTags( depth + 1, head.offset, headerBase, littleEndian );
@@ -2800,13 +2815,13 @@ private:
     void InitializeGlobals()
     {
         g_pStream = NULL;
-        g_Heif_Exif_ItemID              = 0xffffffff;
-        g_Heif_Exif_Offset              = 0;
-        g_Heif_Exif_Length              = 0;
-        g_Canon_CR3_Exif_IFD0           = 0;
-        g_Canon_CR3_Exif_Exif_IFD       = 0;
+        g_Heif_Exif_ItemID = 0xffffffff;
+        g_Heif_Exif_Offset = 0;
+        g_Heif_Exif_Length = 0;
+        g_Canon_CR3_Exif_IFD0 = 0;
+        g_Canon_CR3_Exif_Exif_IFD = 0;
         g_Canon_CR3_Exif_Makernotes_IFD = 0;
-        g_Canon_CR3_Exif_GPS_IFD        = 0;
+        g_Canon_CR3_Exif_GPS_IFD = 0;
         g_Canon_CR3_Embedded_JPG_Length = 0;
     
         g_Embedded_Image_Offset = 0;
@@ -2846,6 +2861,7 @@ private:
         g_acMake[ 0 ] = 0;
         g_acModel[ 0 ] = 0;
         g_acSerialNumber[ 0 ] = 0;
+        g_holdsAdobeEditsInXMP = false;
     } //InitializeGlobals
     
     void UpdateCache( const WCHAR * pwcPath )
@@ -3261,6 +3277,13 @@ public:
 
         return true;
     } //GetOrientation
+
+    bool HoldsAdobeEditsInXMP( const WCHAR * pwcPath )
+    {
+        UpdateCache( pwcPath );
+
+        return g_holdsAdobeEditsInXMP;
+    } //HoldsAdobeEditsInXMP
 
     bool RotateImage( const WCHAR * pwcPath, bool rotateRight )
     {

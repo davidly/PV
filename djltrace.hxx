@@ -21,9 +21,7 @@ class CDJLTrace
         std::mutex mtx;
 
     public:
-        CDJLTrace() : fp( NULL )
-        {
-        }
+        CDJLTrace() : fp( NULL ) {}
 
         bool Enable( bool enable, const WCHAR * pwcLogFile = NULL, bool destroyContents = false )
         {
@@ -69,7 +67,7 @@ class CDJLTrace
         ~CDJLTrace()
         {
             Shutdown();
-        }
+        } //~CDJLTrace
 
         void Trace( const char * format, ... )
         {
@@ -101,6 +99,23 @@ class CDJLTrace
                 fflush( fp );
             }
         } //TraceQuiet
+
+        void TraceDebug( bool condition, const char * format, ... )
+        {
+            #ifdef DEBUG
+            if ( NULL != fp && condition )
+            {
+                lock_guard<mutex> lock( mtx );
+
+                va_list args;
+                va_start( args, format );
+                fprintf( fp, "PID %6d TID %6d -- ", GetCurrentProcessId(), GetCurrentThreadId() );
+                vfprintf( fp, format, args );
+                va_end( args );
+                fflush( fp );
+            }
+            #endif
+        } //TraceDebug
 }; //CDJLTrace
 
 extern CDJLTrace tracer;

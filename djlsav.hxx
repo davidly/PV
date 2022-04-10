@@ -8,6 +8,14 @@ class CStringArray
         vector<WCHAR *> elements;
         std::mutex mtx;
 
+        static int PathCompare( const void * a, const void * b )
+        {
+            WCHAR *pa = *(WCHAR **) a;
+            WCHAR *pb = *(WCHAR **) b;
+
+            return ( wcscmp( pa, pb ) );
+        } //PathCompare
+
     public:
         CStringArray()
         {
@@ -21,6 +29,11 @@ class CStringArray
         size_t Count() { return elements.size(); }
         WCHAR ** Array() { return elements.data(); }
         WCHAR * Get( size_t i ) { return elements[ i ]; }
+
+        void Sort()
+        {
+            qsort( elements.data(), elements.size(), sizeof( WCHAR *), PathCompare );
+        } //Sort
 
         PWCHAR & operator[] ( size_t i ) { return elements[ i ]; }
 
