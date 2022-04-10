@@ -1083,6 +1083,7 @@ extern "C" INT_PTR WINAPI HelpDialogProc( HWND hdlg, UINT message, WPARAM wParam
                                      "keyboard:\n"
                                      "\tctrl+c\t\tcopy image path and bitmap to the clipboard\n"
                                      "\tctrl+d\t\tdelete the current file\n"
+                                     "\te\t\topen folder of current file in explorer\n"
                                      "\ti\t\tshow or hide image EXIF information\n"
                                      "\tl\t\trotate image left\n"
                                      "\tm\t\tshow GPS coordinates (if any) in Google Maps\n"
@@ -1400,6 +1401,8 @@ LRESULT CALLBACK WindowProc( HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam 
                 SendMessage( hwnd, WM_CHAR, 'i', 0 );
             else if ( ID_PV_MAP == wParam )
                 SendMessage( hwnd, WM_CHAR, 'm', 0 );
+            else if ( ID_PV_OPEN_EXPLORER == wParam )
+                SendMessage( hwnd, WM_CHAR, 'e', 0 );
             else if ( ID_PV_NEXT == wParam )
                 SendMessage( hwnd, WM_KEYDOWN, VK_RIGHT, 0 );
             else if ( ID_PV_PREVIOUS == wParam )
@@ -1593,6 +1596,23 @@ LRESULT CALLBACK WindowProc( HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam 
                 else
                     SetThreadExecutionState( ES_CONTINUOUS );
 
+            }
+            else if ( 'e' == wParam )
+            {
+                if ( 0 != g_pImageArray->Count() )
+                {
+                    WCHAR const * pfile = g_pImageArray->Get( g_currentBitmapIndex );
+                    WCHAR const * pslash = wcsrchr( pfile , L'\\' );
+                    if ( 0 != pslash )
+                    {
+                        static WCHAR awcPath[ MAX_PATH ];
+                        int wchars = 1 + pslash - pfile;
+                        wcsncpy( awcPath, pfile, wchars );
+                        awcPath[ wchars ] = 0;
+                        tracer.Trace( "exploring using '%ws'\n", awcPath );
+                        ShellExecute( 0, L"open", awcPath, 0, 0, SW_SHOW );
+                    }
+                }
             }
             else if ( 'm' == wParam )
             {
@@ -1887,7 +1907,7 @@ int WINAPI wWinMain( HINSTANCE hInstance, HINSTANCE, PWSTR pCmdLine, int nCmdSho
     {
         if ( 0 == ( attr & FILE_ATTRIBUTE_DIRECTORY ) )
         {
-            WCHAR *pslash = wcsrchr( awcPhotoPath, L'\\' );
+            WCHAR * pslash = wcsrchr( awcPhotoPath, L'\\' );
             if ( NULL != pslash )
             {
                 wcscpy_s( awcStartingPhoto, _countof( awcStartingPhoto ), awcPhotoPath );

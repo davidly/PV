@@ -25,6 +25,7 @@ BEGIN
         MENUITEM SEPARATOR
         MENUITEM "Show/Hide &Information\ti",    ID_PV_INFORMATION
         MENUITEM "&Map Location\tm",             ID_PV_MAP
+        MENUITEM "Open Folder in &Explorer\te",  ID_PV_OPEN_EXPLORER
         MENUITEM SEPARATOR
         MENUITEM "Enter/Exit &Full Screen\tF11", ID_PV_FULLSCREEN
         MENUITEM SEPARATOR
