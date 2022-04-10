@@ -1441,9 +1441,12 @@ LRESULT CALLBACK WindowProc( HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam 
 
                 if ( g_pImageArray )
                 {
+                    static WCHAR awcCurrent[ MAX_PATH ];
+                    wcscpy( awcCurrent, g_pImageArray->Get( g_currentBitmapIndex ) );
+
                     SortImages();
 
-                    g_currentBitmapIndex = 0;
+                    NavigateToStartingPhoto( awcCurrent );
                     LoadCurrentFileUsingD2D( hwnd );
                     InvalidateRect( hwnd, NULL, TRUE );
                 }
