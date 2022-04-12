@@ -77,7 +77,7 @@ CDJLTrace tracer;
 #define REGISTRY_SHOW_METADATA L"ShowMetadata"
 #define REGISTRY_IN_F11_FULLSCREEN L"InF11FullScreen"
 
-typedef enum PVZoomLevel { zl_ZoomFullImage, zl_Zoom1, zl_Zoom2 } PVZoomLevel;
+typedef enum PVZoomLevel { zl_ZoomFullImage, zl_Zoom1, zl_Zoom2, zl_Zoom4, zl_Zoom8 } PVZoomLevel;
 typedef enum PVProcessRAW { pr_Always, pr_Sometimes, pr_Never } PVProcessRAW;
 typedef enum PVSortImagesBy { si_LastWrite, si_Creation, si_Path } PVSortImagesBy;
 typedef enum PVMoveDirection { md_Previous, md_Stay, md_Next } PVMoveDirection;
@@ -1076,9 +1076,11 @@ extern "C" INT_PTR WINAPI HelpDialogProc( HWND hdlg, UINT message, WPARAM wParam
                                      "\t-t\t\tdebug tracing to %temp%\\tracer.txt. t=append T=overwrite\n"
                                      "\n"
                                      "mouse:\n"
-                                     "\tleft-click \tdisplay 1:1 pixel for pixel\n"
-                                     "\tctrl+left-click\tdisplay 4:1 pixel for pixel\n"
-                                     "\tright-click\tcontext menu\n"
+                                     "\tleft-click \t\tdisplay 1:1 pixel for pixel\n"
+                                     "\tctrl+left-click\t\tdisplay 4:1 pixel for pixel\n"
+                                     "\tshift+left-click\t\tdisplay 16:1 pixel for pixel\n"
+                                     "\tctrl+shift+left-click\tdisplay 64:1 pixel for pixel\n"
+                                     "\tright-click\t\tcontext menu\n"
                                      "\n"
                                      "keyboard:\n"
                                      "\tctrl+c\t\tcopy image path and bitmap to the clipboard\n"
@@ -1105,7 +1107,8 @@ extern "C" INT_PTR WINAPI HelpDialogProc( HWND hdlg, UINT message, WPARAM wParam
                                      "\t- Tested with RAW from Apple, Canon, Fujifilm, Hasselblad, Leica,\n"
                                      "\t      Nikon, Olympus, Panasonic, Pentax, Ricoh, Sigma, Sony.\n"
                                      "\t- Rotate tries to update Exif Orientation, but may re-encode the file.\n"
-                                     "\t- D2D fails to load images longer than 16384 pixels in a dimension.\n";
+                                     "\t- D2D fails to load images longer than 16384 pixels in a dimension.\n"
+                                     "\t- When left-click zooming, use ALT for cubic vs. nearest neighbor.\n";
 
 
     switch( message )
@@ -1223,7 +1226,14 @@ void OnPaint( HWND hwnd, int mouseX, int mouseY, PVZoomLevel zoomLevel )
             xOffset = (float) ( rc.right - wOut ) / 2.0f;
         }
 
-        if ( zl_Zoom1 == zoomLevel || zl_Zoom2 == zoomLevel )
+        if ( zl_ZoomFullImage == zoomLevel )
+        {
+            rectangle.left = xOffset;
+            rectangle.top = yOffset;
+            rectangle.right = (float) wOut + xOffset;
+            rectangle.bottom = (float) hOut + yOffset;
+        }
+        else // zl_Zoom1 || zl_Zoom2 || zl_Zoom4 || zl_Zoom8
         {
             // show the bitmap 1:1 pixel to display pixel, locked on the current mouse location
             // Map the mouse location to the bitmap location
@@ -1233,23 +1243,24 @@ void OnPaint( HWND hwnd, int mouseX, int mouseY, PVZoomLevel zoomLevel )
             mX = mX / (float) wOut * (float) wImg;
             mY = mY / (float) hOut * (float) hImg;
 
-            float factor = ( zl_Zoom1 == zoomLevel ) ? 1.0f : 2.0f;
+            float factor = ( zl_Zoom1 == zoomLevel ) ? 1.0f : ( zl_Zoom2 == zoomLevel ) ? 2.0f : ( zl_Zoom4 == zoomLevel ) ? 4.0f : 8.0f;
 
             rectangle.left = (float) mouseX - factor * mX;
             rectangle.top = (float) mouseY - factor * mY;
             rectangle.right = rectangle.left + factor * (float) wImg;
             rectangle.bottom = rectangle.top + factor * (float) hImg;
         }
-        else
-        {
-            rectangle.left = xOffset;
-            rectangle.top = yOffset;
-            rectangle.right = (float) wOut + xOffset;
-            rectangle.bottom = (float) hOut + yOffset;
-        }
 
         D2D1_RECT_F rectSource = D2D1::RectF( 0.0f, 0.0f, (float) wImg, (float) hImg );
-        D2D1_INTERPOLATION_MODE mode = D2D1_INTERPOLATION_MODE::D2D1_INTERPOLATION_MODE_HIGH_QUALITY_CUBIC;
+
+        // When zooming in, attempt to show pixels exactly as they are, as opposed to doing fancy interpolation.
+        // This isn't for performance (both are very fast on GPUs). It's so you can see exact details when zoomed in.
+        // VK_MENU is what should be named VK_ALT
+
+        D2D1_INTERPOLATION_MODE mode = ( ( zl_ZoomFullImage == zoomLevel ) || ( GetAsyncKeyState( VK_MENU ) & 0x8000 ) ) ?
+                                           D2D1_INTERPOLATION_MODE::D2D1_INTERPOLATION_MODE_HIGH_QUALITY_CUBIC :
+                                           D2D1_INTERPOLATION_MODE::D2D1_INTERPOLATION_MODE_NEAREST_NEIGHBOR;
+ 
         g_target->DrawBitmap( g_D2DBitmap.Get(), &rectangle, 1.0, mode, &rectSource );
 
         //tracer.Trace( "drew bitmap from %f %f %f %f to %f %f %f %f\n", rectSource.left, rectSource.top, rectSource.right, rectSource.bottom, rectangle.left, rectangle.top, rectangle.right, rectangle.bottom );
@@ -1679,7 +1690,11 @@ LRESULT CALLBACK WindowProc( HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam 
 
         case WM_LBUTTONDOWN:
         {
-            if ( GetAsyncKeyState( VK_CONTROL ) & 0x8000 )
+            if ( ( GetAsyncKeyState( VK_SHIFT ) & 0x8000 ) && ( GetAsyncKeyState( VK_CONTROL ) & 0x8000 ) )
+                zoomLevel = zl_Zoom8;
+            else if ( GetAsyncKeyState( VK_SHIFT ) & 0x8000 )
+                zoomLevel = zl_Zoom4;
+            else if ( GetAsyncKeyState( VK_CONTROL ) & 0x8000 )
                 zoomLevel = zl_Zoom2;
             else
                 zoomLevel = zl_Zoom1;
