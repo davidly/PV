@@ -3099,7 +3099,7 @@ public:
                 g_ExposureNum = 1;
             }
     
-            if ( 0 == g_ExposureDen )
+            if ( 0 == g_ExposureDen || 1 == g_ExposureDen )
                 current += sprintf_s( current, past - current, "%d sec\n", g_ExposureNum );
             else
                 current += sprintf_s( current, past - current, "%d/%d sec\n", g_ExposureNum, g_ExposureDen );
