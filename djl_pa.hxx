@@ -4,10 +4,14 @@
 // Wrapper for vector that stores paths and file information
 //
 
-#include "djltrace.hxx"
-#include "djlimagedata.hxx"
+#include <djltrace.hxx>
+#include <djlimagedata.hxx>
+#include <djltimed.hxx>
 
 #include <random>
+#include <ppl.h>
+
+using namespace concurrency;
 
 class CPathArray
 {
@@ -155,10 +159,15 @@ class CPathArray
         {
             if ( !captureTimesLoaded )
             {
-                CImageData id;
+                // This will be slow if there are many files!
 
-                for ( size_t i = 0; i < elements.size(); i++ )
+                long long timeLoadCapture = 0;
+                CTimed timedLoadCapture( timeLoadCapture );
+
+                //for ( size_t i = 0; i < elements.size(); i++ )
+                parallel_for( (size_t) 0, elements.size(), [&] ( size_t i )
                 {
+                    CImageData id;
                     char dateTime[ 20 ];
                     dateTime[0] = 0;
 
@@ -174,14 +183,16 @@ class CPathArray
                         st.wHour = atoi( dateTime + 11 );
                         st.wMinute = atoi( dateTime + 14 );
                         st.wSecond = atoi( dateTime + 17 );
-
                         tracer.Trace( "parsed time '%s': %d, %d, %d, %d, %d, %d\n", dateTime, st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond );
 
                         SystemTimeToFileTime( &st, &elements[i].ftCapture );
                     }
                     else
                         ZeroMemory( &elements[i].ftCapture, sizeof elements[i].ftCapture );
-                }
+                } );
+
+                timedLoadCapture.Complete();
+                tracer.Trace( "time to load capture times: %lld milliseconds\n", timeLoadCapture / CTimed::NanoPerMilli() );
     
                 captureTimesLoaded = true;
             }
