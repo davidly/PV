@@ -79,7 +79,7 @@ CDJLTrace tracer;
 
 typedef enum PVZoomLevel { zl_ZoomFullImage, zl_Zoom1, zl_Zoom2, zl_Zoom4, zl_Zoom8 } PVZoomLevel;
 typedef enum PVProcessRAW { pr_Always, pr_Sometimes, pr_Never } PVProcessRAW;
-typedef enum PVSortImagesBy { si_LastWrite, si_Creation, si_Path } PVSortImagesBy;
+typedef enum PVSortImagesBy { si_Capture, si_Creation, si_LastWrite, si_Path } PVSortImagesBy;
 typedef enum PVMoveDirection { md_Previous, md_Stay, md_Next } PVMoveDirection;
 
 ComPtr<ID2D1DeviceContext> g_target;
@@ -1289,12 +1289,16 @@ void OnPaint( HWND hwnd, int mouseX, int mouseY, PVZoomLevel zoomLevel )
 
 void SortImages()
 {
+    CCursor hourglass( LoadCursor( NULL, IDC_WAIT ) );
+
     if ( si_LastWrite == g_SortImagesBy )
         g_pImageArray->SortOnLastWrite();
     else if ( si_Creation == g_SortImagesBy )
         g_pImageArray->SortOnCreation();
     else if ( si_Path == g_SortImagesBy )
         g_pImageArray->SortOnPath();
+    else if ( si_Capture == g_SortImagesBy )
+        g_pImageArray->SortOnCapture();
 } //SortImages
 
 // Each monitor on which the window resides results in a call (not all monitors).
@@ -1444,9 +1448,9 @@ LRESULT CALLBACK WindowProc( HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam 
                 LoadCurrentFileUsingD2D( hwnd );
                 InvalidateRect( hwnd, NULL, TRUE );
             }
-            else if ( wParam >= ID_PV_SORT_LASTWRITE && wParam <= ID_PV_SORT_PATH )
+            else if ( wParam >= ID_PV_SORT_CAPTURE && wParam <= ID_PV_SORT_PATH )
             {
-                int sortIndex = (int) wParam - ID_PV_SORT_LASTWRITE;
+                int sortIndex = (int) wParam - ID_PV_SORT_CAPTURE;
                 //tracer.Trace( "changing SortImagesBy from %d to %d\n", g_SortImagesBy, sortIndex );
                 g_SortImagesBy = (PVSortImagesBy) sortIndex;
 
@@ -1682,7 +1686,7 @@ LRESULT CALLBACK WindowProc( HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam 
 
             CheckMenuRadioItem( GetSubMenu( hMenu, 0 ), ID_PV_SLIDESHOW_ASAP, ID_PV_SLIDESHOW_600, ID_PV_SLIDESHOW_ASAP + delayIndex, MF_BYCOMMAND );
             CheckMenuRadioItem( GetSubMenu( hMenu, 0 ), ID_PV_RAW_ALWAYS, ID_PV_RAW_NEVER, ID_PV_RAW_ALWAYS + (int) g_ProcessRAW, MF_BYCOMMAND );
-            CheckMenuRadioItem( GetSubMenu( hMenu, 0 ), ID_PV_SORT_LASTWRITE, ID_PV_SORT_PATH, ID_PV_SORT_LASTWRITE + (int) g_SortImagesBy, MF_BYCOMMAND );
+            CheckMenuRadioItem( GetSubMenu( hMenu, 0 ), ID_PV_SORT_CAPTURE, ID_PV_SORT_PATH, ID_PV_SORT_CAPTURE + (int) g_SortImagesBy, MF_BYCOMMAND );
 
             TrackPopupMenu( GetSubMenu( hMenu, 0 ), TPM_RIGHTBUTTON, pt.x, pt.y, 0, hwnd, NULL );
             break;

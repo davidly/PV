@@ -5,6 +5,7 @@
 //
 
 #include "djltrace.hxx"
+#include "djlimagedata.hxx"
 
 #include <random>
 
@@ -16,10 +17,12 @@ class CPathArray
             WCHAR * pwcPath;
             FILETIME ftCreation;
             FILETIME ftLastWrite;
+            FILETIME ftCapture;
         };
 
     private:
         vector<PathItem> elements;
+        bool captureTimesLoaded;
         std::mutex mtx;
 
         static int CompareFT( FILETIME & ftA, FILETIME & ftB )
@@ -51,6 +54,14 @@ class CPathArray
             return CompareFT( pa->ftCreation, pb->ftCreation );
         } //PICreationCompare
         
+        static int PICaptureCompare( const void * a, const void * b )
+        {
+            PathItem *pa = (PathItem *) a;
+            PathItem *pb = (PathItem *) b;
+
+            return CompareFT( pa->ftCapture, pb->ftCapture );
+        } //PICaptureCompare
+        
         static int PIPathCompare( const void * a, const void * b )
         {
             PathItem *pa = (PathItem *) a;
@@ -81,7 +92,8 @@ class CPathArray
         } //PrintList
         
     public:
-        CPathArray()
+        CPathArray() :
+            captureTimesLoaded( false )
         {
         }
 
@@ -139,6 +151,44 @@ class CPathArray
             qsort( elements.data(), elements.size(), sizeof PathItem, PIPathCompare );
         } //SortOnPath
 
+        void SortOnCapture()
+        {
+            if ( !captureTimesLoaded )
+            {
+                CImageData id;
+
+                for ( size_t i = 0; i < elements.size(); i++ )
+                {
+                    char dateTime[ 20 ];
+                    dateTime[0] = 0;
+
+                    if ( ( id.FindDateTime( elements[i].pwcPath, dateTime, _countof( dateTime ) ) ) &&
+                         ( 19 == strlen( dateTime ) ) )
+                    {
+                        // 2005:02:17 21:21:31
+
+                        SYSTEMTIME st = {0};
+                        st.wYear = atoi( dateTime );
+                        st.wMonth = atoi( dateTime + 5 );
+                        st.wDay = atoi( dateTime + 8 );
+                        st.wHour = atoi( dateTime + 11 );
+                        st.wMinute = atoi( dateTime + 14 );
+                        st.wSecond = atoi( dateTime + 17 );
+
+                        tracer.Trace( "parsed time '%s': %d, %d, %d, %d, %d, %d\n", dateTime, st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond );
+
+                        SystemTimeToFileTime( &st, &elements[i].ftCapture );
+                    }
+                    else
+                        ZeroMemory( &elements[i].ftCapture, sizeof elements[i].ftCapture );
+                }
+    
+                captureTimesLoaded = true;
+            }
+
+            qsort( elements.data(), elements.size(), sizeof PathItem, PICaptureCompare );
+        } //SortOnCapture
+
         void InvertSort()
         {
             size_t t = 0;
@@ -156,6 +206,10 @@ class CPathArray
             size_t len = 1 + wcslen( pwc );
             pi.pwcPath = new WCHAR[ len ];
             wcscpy_s( pi.pwcPath, len, pwc );
+
+            // defer loading capture times until absolutely needed because it's slow
+
+            ZeroMemory( &pi.ftCapture, sizeof pi.ftCapture );
 
             lock_guard<mutex> lock( mtx );
 

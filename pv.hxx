@@ -28,9 +28,10 @@
 #define ID_PV_RAW_SMALL_JPG         401
 #define ID_PV_RAW_NEVER             402
 
-#define ID_PV_SORT_LASTWRITE        500
+#define ID_PV_SORT_CAPTURE          500
 #define ID_PV_SORT_CREATION         501
-#define ID_PV_SORT_PATH             502
+#define ID_PV_SORT_LASTWRITE        502
+#define ID_PV_SORT_PATH             503
 
 #define ID_PV_ROTATE_RIGHT          600
 #define ID_PV_ROTATE_LEFT           601
