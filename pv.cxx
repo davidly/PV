@@ -921,7 +921,6 @@ void LoadNextImage( HWND hwnd, PVMoveDirection md )
 
         if ( md_Stay == md )
             md = md_Next;
-
     } while ( true );
 } //LoadNextImage
 
@@ -1784,7 +1783,6 @@ LRESULT CALLBACK WindowProc( HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam 
                     if ( SW_MAXIMIZE == savedF11WinPlacement.showCmd )
                         style |= WS_MAXIMIZE;
                     SetWindowLongPtr( hwnd, GWL_STYLE, style );
-
                     SetWindowPlacement( hwnd, &savedF11WinPlacement );
                 }
                 else
