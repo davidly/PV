@@ -338,6 +338,11 @@ private:
         return ( 0x5089 == ( x & 0xffff ) );
     } //IsPerhapsPNG
     
+    bool IsPerhapsBMP( unsigned long long x )
+    {
+        return ( 0x4d42 == ( x & 0xffff ) );
+    } //IsPerhapsBMP
+    
     bool IsPerhapsAnImageHeader( unsigned long long x )
     {
         return ( ( 0xd8ff == ( x & 0xffff ) ) ||    // jpg
@@ -2088,6 +2093,33 @@ private:
         } while( true );
     } //ParsePNG
     
+    void ParseBMP( bool embedded = false )
+    {
+        __int64 len = g_pStream->Length();
+
+        if ( len < ( sizeof BITMAPFILEHEADER + sizeof BITMAPINFOHEADER ) )
+            return;
+
+        BITMAPFILEHEADER bfh;
+        GetBytes( 0, &bfh, sizeof bfh );
+    
+        BITMAPV5HEADER bih;
+        GetBytes( sizeof bfh, &bih, sizeof bih );
+
+        tracer.Trace( "parsed bmp: embedded %d, width %d, height %d\n", embedded, bih.bV5Width, bih.bV5Height );
+
+        if ( embedded )
+        {
+            g_Embedded_Image_Width = bih.bV5Width;
+            g_Embedded_Image_Height = bih.bV5Height;
+        }
+        else
+        {
+            g_ImageWidth = bih.bV5Width;
+            g_ImageHeight = bih.bV5Height;
+        }
+    } //ParseBMP
+
     bool isMP3Frame( char const * frameID, char const * name, const char * name2 = 0 )
     {
         if ( * (DWORD *) frameID == * (DWORD *) name )
@@ -2549,10 +2581,9 @@ private:
              ( 0x4f524949 != header ) &&                // ORF olympus
              ( 0x00554949 != header ) &&                // RW2 panasonic
              ( 0x494a5546 != header ) &&                // RAF fujifilm
-             ( 0x474e5089 != header ) )                 // PNG
+             ( 0x474e5089 != header ) &&                // PNG
+             ( 0x4d42     != ( header & 0xffff ) ) )    // BMP
         {
-            // BMP: 0x4d42
-    
             g_pStream = NULL;
             return;
         }
@@ -2574,6 +2605,12 @@ private:
     
             ParsePNG();
 
+            g_pStream = NULL;
+            return;
+        }
+        else if ( 0x4d42 == ( header & 0xffff ) )
+        {
+            ParseBMP();
             g_pStream = NULL;
             return;
         }
@@ -2765,6 +2802,8 @@ private:
                     ParseOldJpg( true );
                 else if ( IsPerhapsPNG( head ) )
                     ParsePNG( true );
+                else if ( IsPerhapsBMP( head ) )
+                    ParseBMP( true );
                 else
                     tracer.Trace( "skipping embedded image with unexpected header %#llx in %ws\n", head, pwc );
 
