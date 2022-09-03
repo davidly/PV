@@ -32,14 +32,14 @@ BEGIN
         MENUITEM "Start/Stop &Slideshow\ts",     ID_PV_SLIDESHOW
         POPUP "Slideshow Delay"
         BEGIN
-            MENUITEM "ASAP",       ID_PV_SLIDESHOW_ASAP
-            MENUITEM "1 second",   ID_PV_SLIDESHOW_1
-            MENUITEM "5 seconds",  ID_PV_SLIDESHOW_5
-            MENUITEM "15 seconds", ID_PV_SLIDESHOW_15
-            MENUITEM "30 seconds", ID_PV_SLIDESHOW_30
-            MENUITEM "1 minute",   ID_PV_SLIDESHOW_60
-            MENUITEM "10 minutes", ID_PV_SLIDESHOW_600
-        END
+            MENUITEM "ASAP",                     ID_PV_SLIDESHOW_ASAP
+            MENUITEM "1 second",                 ID_PV_SLIDESHOW_1
+            MENUITEM "5 seconds",                ID_PV_SLIDESHOW_5
+            MENUITEM "15 seconds",               ID_PV_SLIDESHOW_15
+            MENUITEM "30 seconds",               ID_PV_SLIDESHOW_30
+            MENUITEM "1 minute",                 ID_PV_SLIDESHOW_60
+            MENUITEM "10 minutes",               ID_PV_SLIDESHOW_600
+        END                      
 #ifdef PV_USE_LIBRAW
         MENUITEM SEPARATOR
         POPUP "RAW Image Handling"
@@ -52,14 +52,16 @@ BEGIN
         MENUITEM SEPARATOR
         POPUP "Sort Images By"
         BEGIN
-            MENUITEM "Capture Time",    ID_PV_SORT_CAPTURE
-            MENUITEM "Creation Time",   ID_PV_SORT_CREATION
-            MENUITEM "Last Write Time", ID_PV_SORT_LASTWRITE
-            MENUITEM "Path",            ID_PV_SORT_PATH
+            MENUITEM "Capture Time",             ID_PV_SORT_CAPTURE
+            MENUITEM "Creation Time",            ID_PV_SORT_CREATION
+            MENUITEM "Last Write Time",          ID_PV_SORT_LASTWRITE
+            MENUITEM "Path",                     ID_PV_SORT_PATH
         END
         MENUITEM SEPARATOR
-        MENUITEM "Rotate &Right\tr", ID_PV_ROTATE_RIGHT
-        MENUITEM "Rotate &Left\tl",  ID_PV_ROTATE_LEFT
+        MENUITEM "Rotate &Right\tr",             ID_PV_ROTATE_RIGHT
+        MENUITEM "Rotate &Left\tl",              ID_PV_ROTATE_LEFT
+        MENUITEM SEPARATOR
+        MENUITEM "Ra&ting\tt",                   ID_PV_RATING
         MENUITEM SEPARATOR
         MENUITEM "&Help\tF1", ID_PV_HELP
     END

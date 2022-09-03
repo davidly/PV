@@ -1,5 +1,7 @@
 #pragma once
 
+#include "djltrace.hxx"
+
 //
 // Implement IStream sufficiently for WIC to open images.
 //

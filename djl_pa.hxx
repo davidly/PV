@@ -239,6 +239,19 @@ class CPathArray
             elements.push_back( pi );
         } //Add
 
+        void Add( char * pc )
+        {
+            PathItem pi = {};
+            size_t len = 1 + strlen( pc );
+            pi.pwcPath = new WCHAR[ len ];
+            size_t outputLen = 0;
+            mbstowcs_s( &outputLen, pi.pwcPath, len, pc, len );
+
+            lock_guard<mutex> lock( mtx );
+
+            elements.push_back( pi );
+        } //Add
+
         bool Delete( size_t item )
         {
             tracer.Trace( "deleting CPathArray of size %zu item %zu\n", elements.size(), item );

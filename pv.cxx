@@ -1093,6 +1093,7 @@ extern "C" INT_PTR WINAPI HelpDialogProc( HWND hdlg, UINT message, WPARAM wParam
                                      "\tq or esc   \tquit the app\n"
                                      "\tr\t\trotate image right\n"
                                      "\ts\t\tstart or stop slideshow\n"
+                                     "\tt\t\tincrement rating (if already set in file) or wrap to 0\n"
                                      "\tF11\t\tenter or exit full-screen mode\n"
                                      "\n"
                                      "notes:\n"
@@ -1372,6 +1373,37 @@ void DeleteCommand( HWND hwnd )
     }
 } //DeleteCommand
 
+void RatingCommand( HWND hwnd )
+{
+    if ( 0 != g_pImageArray->Count() )
+    {
+        // First see if the file has a rating that can be updated.
+        // The code below here doesn't know how to allocate space if it's not there yet.
+        // RAW files from recent cameras have the space allocated and the value set to 0.
+        // JPG files typically don't have rating set.
+
+        int rating = 0;
+        if ( !g_pImageData->GetRating( g_pImageArray->Get( g_currentBitmapIndex ), rating ) )
+            return;
+
+        // the file is being held open and not shared for write by WIC -- close it.
+
+        g_BitmapSource.Reset();
+        g_D2DBitmap.Reset();
+
+        // toggle the rating upward to 5 then back to 0
+
+        bool ok = g_pImageData->ToggleRating( g_pImageArray->Get( g_currentBitmapIndex ) );
+
+        tracer.Trace( "result of togglerating: %d\n", ok );
+
+        // load the current file again
+
+        LoadCurrentFileUsingD2D( hwnd );
+        InvalidateRect( hwnd, NULL, TRUE );
+    }
+} //RatingCommand
+
 LRESULT CALLBACK WindowProc( HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam )
 {
     const int TIMER_SLIDESHOW_ID = 1;
@@ -1409,6 +1441,8 @@ LRESULT CALLBACK WindowProc( HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam 
                 CopyCommand( hwnd );
             else if ( ID_PV_DELETE == wParam )
                 DeleteCommand( hwnd );
+            else if ( ID_PV_RATING == wParam )
+                RatingCommand( hwnd );
             else if ( ID_PV_SLIDESHOW == wParam )
                 SendMessage( hwnd, WM_CHAR, 's', 0 );
             else if ( ID_PV_INFORMATION == wParam )
@@ -1762,6 +1796,10 @@ LRESULT CALLBACK WindowProc( HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam 
             else if ( ( 0x44 == wParam ) && ( GetKeyState( VK_CONTROL ) & 0x8000 ) ) // ^d for delete
             {
                 DeleteCommand( hwnd );
+            }
+            else if ( 0x54 == wParam ) // T
+            {
+                RatingCommand( hwnd );
             }
             else if ( VK_DELETE == wParam )
             {
