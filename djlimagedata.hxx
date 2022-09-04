@@ -609,6 +609,16 @@ private:
                     GetString( stringOffset + tagHeaderBase + headerBase, g_acSerialNumber, _countof( g_acSerialNumber ), head.count );
                     //tracer.Trace( "fujifilm makernote (alternate) Serial #: %s\n", g_acSerialNumber );
                 }
+                else if ( 5169 == head.id && 4 == head.type )
+                {
+                    // I haven't seen a RAF file with this value set.
+                    // If rating is set in-camera (on a X-S10), the xmp in the embedded JPG has the rating set appropriately,
+                    // but this field does not exist.
+
+                    size_t ratingOffset = head.offset + tagHeaderBase + headerBase;
+                    DWORD ratingTest = GetDWORD( ratingOffset, false );
+                    tracer.Trace( "fujifilm rating value %d and offset: %zd, rating at that offset %d\n", head.offset, ratingOffset, ratingTest );
+                }
             }
     
             IFDOffset = GetDWORD( IFDOffset + headerBase, littleEndian );
@@ -1285,11 +1295,15 @@ private:
         if ( pcRating )
         {
             pcRating += strlen( pcTag );
-            if ( isdigit( *pcRating ) )       // doesn't handle Adobe Bridge's -1
+            char rating = *pcRating;
+
+            if ( rating >= '0' && rating <= '5'  )       // doesn't handle Adobe Bridge's -1
             {
-                g_RatingInXMP = ( *pcRating ) - '0';
+                g_RatingInXMP = rating - '0';
                 g_RatingInXMP_Offset = fileOffset + ( pcRating - pcIn );
             }
+            else
+                tracer.Trace( "XMP rating value isn't a character 0 to 5: '%c' == %#x\n", rating, rating );
         }
     } //EnumerateXMPData
 
@@ -1952,7 +1966,7 @@ private:
         }
     } //EnumerateIFD0
     
-    int ParseOldJpg( bool embedded = false )
+    int ParseOldJpg( bool embedded = false, DWORD startingOffset = 0 )
     {
         int exifOffset = 0;
 
@@ -1970,7 +1984,7 @@ private:
         const BYTE MARKER_EOI   = 0xd9;          // end of image
         const BYTE MARKER_COM   = 0xfe;          // comment
     
-        DWORD offset = 2;
+        DWORD offset = 2 + startingOffset;
 
         #pragma pack(push, 1)
         struct JpgRecord
@@ -2721,6 +2735,9 @@ private:
             // RAF files aren't like TIFF files. They have their own format which isn't documented and this app can't parse.
             // But RAF files have an embedded JPG with full properties, so show those.
             // https://libopenraw.freedesktop.org/formats/raf/
+            // Also, the rating in the xmp data of the embedded JPG is what Lightroom uses when importing a RAF file.
+            // Any rating stored elsewhere in native RAF format is ignored by this code since Lightroom honors the
+            // more simple and documented version.
     
             DWORD jpgOffset = GetDWORD( 84, false );
             DWORD jpgLength = GetDWORD( 88, false );
@@ -2732,6 +2749,8 @@ private:
                 return;
             }
     
+            int exifMaybe = ParseOldJpg( false, jpgOffset );
+
             DWORD exifSig = GetDWORD( jpgOffset + exifHeaderOffset, true );
     
             if ( 0x002a4949 != exifSig )
