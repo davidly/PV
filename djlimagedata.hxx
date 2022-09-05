@@ -611,13 +611,13 @@ private:
                 }
                 else if ( 5169 == head.id && 4 == head.type )
                 {
-                    // I haven't seen a RAF file with this value set.
+                    // This is rarely populated and not relevant.
                     // If rating is set in-camera (on a X-S10), the xmp in the embedded JPG has the rating set appropriately,
                     // but this field does not exist.
 
                     size_t ratingOffset = head.offset + tagHeaderBase + headerBase;
                     DWORD ratingTest = GetDWORD( ratingOffset, false );
-                    tracer.Trace( "fujifilm rating value %d and offset: %zd, rating at that offset %d\n", head.offset, ratingOffset, ratingTest );
+                    //tracer.Trace( "fujifilm rating value %d and offset: %zd, rating at that offset %d\n", head.offset, ratingOffset, ratingTest );
                 }
             }
     
@@ -2183,7 +2183,7 @@ private:
         BITMAPV5HEADER bih;
         GetBytes( sizeof bfh, &bih, sizeof bih );
 
-        tracer.Trace( "parsed bmp: embedded %d, width %d, height %d\n", embedded, bih.bV5Width, bih.bV5Height );
+        //tracer.Trace( "parsed bmp: embedded %d, width %d, height %d\n", embedded, bih.bV5Width, bih.bV5Height );
 
         if ( embedded )
         {
@@ -2984,7 +2984,7 @@ private:
         g_acSerialNumber[ 0 ] = 0;
         g_holdsAdobeEditsInXMP = false;
         g_RatingInXMP_Offset = 0; // offset of 1 ascii character in the range of 0-5.
-        g_RatingInXMP = 0;
+        g_RatingInXMP = 0;        // integer 0..5 only valid if g_RatingInXMP_Offset isn't 0
     } //InitializeGlobals
     
     void UpdateCache( const WCHAR * pwcPath )
@@ -3417,7 +3417,7 @@ public:
 
         if ( 0 == g_RatingInXMP_Offset )
         {
-            tracer.Trace( "file has no rating field\n" );
+            //tracer.Trace( "file has no rating field\n" );
             return false;
         }
 
@@ -3477,6 +3477,55 @@ public:
         CloseHandle( hFile );
         return ok;
     } //ToggleRating
+
+    bool SetRating( const WCHAR * pwcPath, int rating )
+    {
+        // If the file can hold a rating, set it to the value as a character
+
+        if ( rating < 0 || rating > 5 )
+            return false;
+
+        UpdateCache( pwcPath );
+
+        if ( 0 == g_RatingInXMP_Offset )
+        {
+            tracer.Trace( "file has no rating field, so it can't be updated\n" );
+            return false;
+        }
+
+        HANDLE hFile = CreateFile( pwcPath, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL );
+        if ( INVALID_HANDLE_VALUE == hFile )
+        {
+            tracer.Trace( "can't open file for write to update rating, error %d\n", GetLastError() );
+            return false;
+        }
+
+        LARGE_INTEGER li;
+        li.QuadPart = g_RatingInXMP_Offset;
+        bool ok = SetFilePointerEx( hFile, li, NULL, FILE_BEGIN );
+
+        if ( ok )
+        {
+            DWORD written = 0;
+            char charRating = '0' + rating;
+            ok = WriteFile( hFile, &charRating, sizeof charRating, &written, NULL );
+
+            if ( ok )
+            {
+                tracer.Trace( "updated rating at offset %lld to %c\n", g_RatingInXMP_Offset, charRating );
+                g_RatingInXMP = rating;
+            }
+            else
+                tracer.Trace( "can't write new rating to file, error %d\n", GetLastError() );
+        }
+        else
+        {
+            tracer.Trace( "can't set file pointer to update rating, error %d\n", GetLastError() );
+        }
+
+        CloseHandle( hFile );
+        return ok;
+    } //SetRating
 
     bool RotateImage( const WCHAR * pwcPath, bool rotateRight )
     {

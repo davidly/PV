@@ -1095,6 +1095,7 @@ extern "C" INT_PTR WINAPI HelpDialogProc( HWND hdlg, UINT message, WPARAM wParam
                                      "\ts\t\tstart or stop slideshow\n"
                                      "\tt\t\tincrement rating (if already set in file) or wrap to 0\n"
                                      "\tF11\t\tenter or exit full-screen mode\n"
+                                     "\t0-5\t\tset the photo's rating (if possible)\n"
                                      "\n"
                                      "notes:\n"
                                      "\t- All image files below the given folder are enumerated.\n"
@@ -1373,7 +1374,7 @@ void DeleteCommand( HWND hwnd )
     }
 } //DeleteCommand
 
-void RatingCommand( HWND hwnd )
+void RatingCommand( HWND hwnd, char r = 0 )
 {
     if ( 0 != g_pImageArray->Count() )
     {
@@ -1386,16 +1387,31 @@ void RatingCommand( HWND hwnd )
         if ( !g_pImageData->GetRating( g_pImageArray->Get( g_currentBitmapIndex ), rating ) )
             return;
 
+        // if no change in the rating, return
+
+        if ( ( 0 != r ) && ( rating == ( r - '0' ) ) )
+            return;
+
         // the file is being held open and not shared for write by WIC -- close it.
 
         g_BitmapSource.Reset();
         g_D2DBitmap.Reset();
 
-        // toggle the rating upward to 5 then back to 0
+        if ( 0 == r )
+        {
+            // toggle the rating upward to 5 then back to 0
 
-        bool ok = g_pImageData->ToggleRating( g_pImageArray->Get( g_currentBitmapIndex ) );
+            bool ok = g_pImageData->ToggleRating( g_pImageArray->Get( g_currentBitmapIndex ) );
 
-        tracer.Trace( "result of togglerating: %d\n", ok );
+            tracer.Trace( "result of togglerating: %d\n", ok );
+        }
+        else
+        {
+            rating = r - '0';
+            bool ok = g_pImageData->SetRating( g_pImageArray->Get( g_currentBitmapIndex ), rating );
+
+            tracer.Trace( "result of setrating: %d\n", ok );
+        }
 
         // load the current file again
 
@@ -1692,6 +1708,8 @@ LRESULT CALLBACK WindowProc( HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam 
                 SendMessage( hwnd, WM_KEYDOWN, VK_RIGHT, 0 );
             else if ( 'p' == wParam )
                 SendMessage( hwnd, WM_KEYDOWN, VK_LEFT, 0 );
+            else if ( wParam >= '0' && wParam <= '5' )
+                SendMessage( hwnd, WM_KEYDOWN, wParam, 0 );
 
             //tracer.Trace( "wm_char %#x\n", wParam );
             break;
@@ -1800,6 +1818,10 @@ LRESULT CALLBACK WindowProc( HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam 
             else if ( 0x54 == wParam ) // T
             {
                 RatingCommand( hwnd );
+            }
+            else if ( wParam >= '0' && wParam <= '5' )
+            {
+                RatingCommand( hwnd, wParam );
             }
             else if ( VK_DELETE == wParam )
             {
