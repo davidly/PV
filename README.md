@@ -57,5 +57,7 @@ There is no install for PV -- just copy pv.exe to a folder in your path. You can
 right-click on image files in Explorer to open files with PV and/or make PV the default
 app for various image formats.
 
+![PV Help Screenshot](help.png)
+
 PV is distributed for free using the GNU General Public License v3. Information can
 be found here: https://www.gnu.org/licenses/gpl-3.0.en.html
