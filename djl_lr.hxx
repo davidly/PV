@@ -19,6 +19,7 @@
 #pragma comment( lib, "libraw_static.lib" )
 
 #include "djltrace.hxx"
+#include <djl_tz.hxx>
 
 using namespace std;
 
@@ -87,4 +88,104 @@ class CLibRaw
 
             return data.release();
         } //ProcessRaw
+
+        static bool ExportAsTiff( ComPtr<IWICImagingFactory> & wicFactory, WCHAR const * pwcPath, bool createXMP = true, bool compress = true )
+        {
+            putenv( (char *) "TZ=UTC" ); // dcraw compatibility, affects TIFF datestamp field
+        
+            unique_ptr<LibRaw> RawProcessor( new LibRaw );
+            RawProcessor->imgdata.params.output_tiff = 1;
+            RawProcessor->imgdata.params.output_bps = 16;
+          
+            size_t len = 1 + wcslen( pwcPath );
+            unique_ptr<char> inputFile( new char[ len ] );
+            size_t converted = 0;
+            wcstombs_s( &converted, inputFile.get(), len, pwcPath, len );
+  
+            int ret = RawProcessor->open_file( inputFile.get() );
+            if ( LIBRAW_SUCCESS != ret )
+            {
+                tracer.Trace( "error %#x == %d; can't open input file %s: %s\n", ret, ret, inputFile.get(), libraw_strerror( ret ) );
+                return false;
+            }
+          
+            ret = RawProcessor->unpack();
+            if ( LIBRAW_SUCCESS != ret )
+            {
+                tracer.Trace( "error %#x == %d; can't unpack %s: %s\n", ret, ret, inputFile.get(), libraw_strerror( ret ) );
+                return false;
+            }
+          
+            ret = RawProcessor->dcraw_process();
+            if ( LIBRAW_SUCCESS != ret )
+            {
+                tracer.Trace( "error %#x == %d, can't do pocessing on %s: %s\n", ret, ret, inputFile.get(), libraw_strerror( ret ) );
+                return false;
+            }
+
+            const char * pcTIFFExt = "-lr.tiff";
+            unique_ptr<char> outputFile( new char[ len + strlen( pcTIFFExt ) ] );
+            strcpy( outputFile.get(), inputFile.get() );
+            char * dot = strrchr( outputFile.get(), '.' );
+            if ( 0 == dot )
+            {
+                tracer.Trace( "input filename doesn't have a file extension, which is required\n" );
+                return false;
+            }
+        
+            strcpy( dot, pcTIFFExt );
+          
+            ret = RawProcessor->dcraw_ppm_tiff_writer( outputFile.get() );
+            if ( LIBRAW_SUCCESS != ret )
+            {
+                tracer.Trace( "error %#x == %d; can't write %s: %s\n", ret, ret, outputFile.get(), libraw_strerror( ret ) );
+                return false;
+            }
+        
+            RawProcessor->recycle_datastream();
+            RawProcessor->recycle();
+            RawProcessor.reset( 0 );
+
+            if ( createXMP )
+            {
+                // Create a .xmp file with a rating of 1 so it's easier to find the image in Lightroom
+
+                const char * pcXMPExt = ".xmp";
+                unique_ptr<char> xmpFile( new char[ 1 + strlen( outputFile.get() ) + strlen( pcXMPExt ) ] );
+                strcpy( xmpFile.get(), outputFile.get() );
+                dot = strrchr( xmpFile.get(), '.' );
+                strcpy( dot, pcXMPExt );
+            
+                FILE * fp = fopen( xmpFile.get(), "w" );
+                if ( fp )
+                {
+                    const char * pcRating1XMP =
+                       R"(<x:xmpmeta xmlns:x="adobe:ns:meta/" x:xmptk="Adobe XMP Core 7.0-c000 1.000000, 0000/00/00-00:00:00        ">)" "\n"
+                       R"( <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">)"                                           "\n"
+                       R"(  <rdf:Description rdf:about="")"                                                                              "\n"
+                       R"(    xmlns:xmp="http://ns.adobe.com/xap/1.0/")"                                                                 "\n"
+                       R"(   xmp:Rating="1")"                                                                                            "\n"
+                       R"(  </rdf:Description>)"                                                                                         "\n"
+                       R"( </rdf:RDF>)"                                                                                                  "\n"
+                       R"(</x:xmpmeta>)"                                                                                                 "\n"
+                       ;
+
+                    fprintf( fp, "%s", pcRating1XMP );
+                    fclose( fp );
+                }
+            }
+
+            if ( compress )
+            {
+                len = 1 + strlen( outputFile.get() );
+                CTiffCompression tiffCompression;
+                unique_ptr<WCHAR> wideOutputFile( new WCHAR[ len ] );
+                size_t converted = 0;
+                mbstowcs_s( &converted, wideOutputFile.get(), len, outputFile.get(), len );
+
+                tiffCompression.CompressTiff( wicFactory, wideOutputFile.get(), true );
+            }
+
+            return true;
+        } //ExportAsTiff
 };

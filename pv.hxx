@@ -42,3 +42,4 @@
 #define ID_PV_STRING_MAP_URL        703
 
 #define ID_PV_RATING                800
+#define ID_PV_EXPORT_AS_TIFF        801

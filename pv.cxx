@@ -40,6 +40,7 @@ using namespace std::chrono;
 
 #ifdef PV_USE_LIBRAW
 #include <djl_lr.hxx>
+#include <djl_tz.hxx>
 #endif // PV_USE_LIBRAW
 
 #include <wrl.h>
@@ -1094,6 +1095,7 @@ extern "C" INT_PTR WINAPI HelpDialogProc( HWND hdlg, UINT message, WPARAM wParam
                                      "\tr\t\trotate image right\n"
                                      "\ts\t\tstart or stop slideshow\n"
                                      "\tt\t\tincrement rating (if already set in file) or wrap to 0\n"
+                                     "\tx\t\texports the current RAW file as a 16-bit TIFF\n"
                                      "\tF11\t\tenter or exit full-screen mode\n"
                                      "\t0-5\t\tset the photo's rating (if possible)\n"
                                      "\n"
@@ -1109,7 +1111,8 @@ extern "C" INT_PTR WINAPI HelpDialogProc( HWND hdlg, UINT message, WPARAM wParam
                                      "\t      Nikon, Olympus, Panasonic, Pentax, Ricoh, Sigma, Sony.\n"
                                      "\t- Rotate tries to update Exif Orientation, but may re-encode the file.\n"
                                      "\t- D2D fails to load images longer than 16384 pixels in a dimension.\n"
-                                     "\t- When left-click zooming, use ALT for cubic vs. nearest neighbor.\n";
+                                     "\t- When left-click zooming, use ALT for cubic vs. nearest neighbor.\n"
+                                     "\t- Export as TIFF requires LibRaw and creates an xmp file with Rating=1.\n";
 
 
     switch( message )
@@ -1374,6 +1377,28 @@ void DeleteCommand( HWND hwnd )
     }
 } //DeleteCommand
 
+void ExportCommand( HWND hwnd )
+{
+#ifdef PV_USE_LIBRAW
+    if ( 0 != g_pImageArray->Count() )
+    {
+        WCHAR const * pwcFile = g_pImageArray->Get( g_currentBitmapIndex );
+        bool isRaw = IsInExtensionList( pwcFile, (WCHAR **) RawFileExtensions, _countof( RawFileExtensions ) );
+        if ( isRaw )
+        {
+            CCursor hourglass( LoadCursor( NULL, IDC_WAIT ) );
+            CLibRaw libraw;
+            bool ok = libraw.ExportAsTiff( g_IWICFactory, pwcFile );
+            tracer.Trace( "result of export as tiff: %d\n", ok );
+        }
+        else
+        {
+            tracer.Trace( "can't export file as tiff because it's not RAW\n" );
+        }
+    }
+#endif // PV_USE_LIBRAW
+} //ExportCommand
+
 void RatingCommand( HWND hwnd, char r = 0 )
 {
     if ( 0 != g_pImageArray->Count() )
@@ -1459,6 +1484,8 @@ LRESULT CALLBACK WindowProc( HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam 
                 DeleteCommand( hwnd );
             else if ( ID_PV_RATING == wParam )
                 RatingCommand( hwnd );
+            else if ( ID_PV_EXPORT_AS_TIFF == wParam )
+                SendMessage( hwnd, WM_CHAR, 'x', 0 );
             else if ( ID_PV_SLIDESHOW == wParam )
                 SendMessage( hwnd, WM_CHAR, 's', 0 );
             else if ( ID_PV_INFORMATION == wParam )
@@ -1710,6 +1737,8 @@ LRESULT CALLBACK WindowProc( HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam 
                 SendMessage( hwnd, WM_KEYDOWN, VK_LEFT, 0 );
             else if ( wParam >= '0' && wParam <= '5' )
                 SendMessage( hwnd, WM_KEYDOWN, wParam, 0 );
+            else if ( 'x' == wParam )
+                ExportCommand( hwnd );
 
             //tracer.Trace( "wm_char %#x\n", wParam );
             break;
