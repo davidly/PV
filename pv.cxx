@@ -37,6 +37,7 @@ using namespace std::chrono;
 #include <djlimagedata.hxx>
 #include <djl_rotate.hxx>
 #include <djltimed.hxx>
+#include <djl_tz.hxx>
 
 #ifdef PV_USE_LIBRAW
 #include <djl_lr.hxx>
@@ -1388,8 +1389,15 @@ void ExportCommand( HWND hwnd )
         {
             CCursor hourglass( LoadCursor( NULL, IDC_WAIT ) );
             CLibRaw libraw;
-            bool ok = libraw.ExportAsTiff( g_IWICFactory, pwcFile );
+            WCHAR awcExport[ MAX_PATH ];
+            bool ok = libraw.ExportAsTiff( pwcFile, awcExport );
             tracer.Trace( "result of export as tiff: %d\n", ok );
+
+            if ( ok )
+            {
+                CTiffCompression tiffCompression;
+                tiffCompression.CompressTiff( g_IWICFactory, awcExport, true );
+            }
         }
         else
         {

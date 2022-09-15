@@ -19,7 +19,6 @@
 #pragma comment( lib, "libraw_static.lib" )
 
 #include "djltrace.hxx"
-#include <djl_tz.hxx>
 
 using namespace std;
 
@@ -89,7 +88,7 @@ class CLibRaw
             return data.release();
         } //ProcessRaw
 
-        static bool ExportAsTiff( ComPtr<IWICImagingFactory> & wicFactory, WCHAR const * pwcPath, bool createXMP = true, bool compress = true )
+        static bool ExportAsTiff( WCHAR const * pwcPath, WCHAR * pwcExportPath, bool createXMP = true )
         {
             putenv( (char *) "TZ=UTC" ); // dcraw compatibility, affects TIFF datestamp field
         
@@ -146,6 +145,10 @@ class CLibRaw
             RawProcessor->recycle();
             RawProcessor.reset( 0 );
 
+            converted = 0;
+            len = 1 + strlen( outputFile.get() );
+            mbstowcs_s( &converted, pwcExportPath, len, outputFile.get(), len );
+
             if ( createXMP )
             {
                 // Create a .xmp file with a rating of 1 so it's easier to find the image in Lightroom
@@ -173,17 +176,12 @@ class CLibRaw
                     fprintf( fp, "%s", pcRating1XMP );
                     fclose( fp );
                 }
-            }
+                else
+                {
+                    // don't fail this call just because the .xmp file can't be created
 
-            if ( compress )
-            {
-                len = 1 + strlen( outputFile.get() );
-                CTiffCompression tiffCompression;
-                unique_ptr<WCHAR> wideOutputFile( new WCHAR[ len ] );
-                size_t converted = 0;
-                mbstowcs_s( &converted, wideOutputFile.get(), len, outputFile.get(), len );
-
-                tiffCompression.CompressTiff( wicFactory, wideOutputFile.get(), true );
+                    tracer.Trace( "unable to create xmp file, error %d\n", errno );
+                }
             }
 
             return true;
