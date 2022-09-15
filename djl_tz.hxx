@@ -19,7 +19,6 @@ using namespace Microsoft::WRL;
 class CTiffCompression
 {
 private:
-
     BOOL CreateOutputPath( WCHAR const * pwcIn, WCHAR * pwcOut )
     {
         WCHAR const * dot = wcsrchr( pwcIn, L'.' );
@@ -219,6 +218,8 @@ private:
         return hr;
     } //SetTiffCompression
     
+public:
+
     HRESULT GetTiffCompression( ComPtr<IWICImagingFactory> & wicFactory, WCHAR const * pwcPath, DWORD * pCompression )
     {
         *pCompression = 0;
@@ -289,16 +290,22 @@ private:
         return E_FAIL; // none of the frames had compression set
     } //GetTiffCompression
 
-public:
-
-    bool CompressTiff( ComPtr<IWICImagingFactory> & wicFactory, WCHAR const * pwcPath, bool compress = true )
+    HRESULT CompressTiff( ComPtr<IWICImagingFactory> & wicFactory, WCHAR const * pwcPath, DWORD compressionMethod )
     {
+        // these constants are part of the TIFF specification -- 8 is zip, 5 is lzw, and 1 is no compression
+
+        if ( 1 != compressionMethod && 5 != compressionMethod && 8 != compressionMethod )
+        {
+            tracer.Trace( "compression method is invalid -- it must be 1, 5, or 8. value is %d\n", compressionMethod );
+            return E_INVALIDARG;
+        }
+
         WCHAR awcInputPath[ MAX_PATH ];
         WCHAR * pwcResult = _wfullpath( awcInputPath, pwcPath, _countof( awcInputPath ) );
         if ( NULL == pwcResult )
         {
             tracer.Trace( "can't call _wfullpath on %ws\n", pwcPath );
-            return false;
+            return E_INVALIDARG;
         }
     
         WCHAR awcOutputPath[ MAX_PATH ];
@@ -306,29 +313,22 @@ public:
         if ( !ok )
         {
             tracer.Trace( "can't create output tiff path\n" );
-            return false;
+            return HRESULT_FROM_WIN32( GetLastError() );
         }
     
         ok = DeleteFile( awcOutputPath );
-
-        // these constants are part of the TIFF specification -- 8 is zip and 1 is no compression
-
-        DWORD compressionMethod = 8;
-        if ( !compress )
-            compressionMethod = 1;
-    
         DWORD currentCompression = 0;
         HRESULT hr = GetTiffCompression( wicFactory, awcInputPath, &currentCompression );
         if ( FAILED( hr ) )
         {
             tracer.Trace( "failed to read current compression value: %#x\n", hr );
-            return false;
+            return hr;
         }
     
         tracer.Trace( "the current compression is %d for file %ws\n", currentCompression, awcInputPath );
     
         if ( compressionMethod == currentCompression )
-            return true;
+            return S_OK;
     
         hr = SetTiffCompression( wicFactory, awcInputPath, awcOutputPath, compressionMethod );
         if ( SUCCEEDED( hr ) )
@@ -344,7 +344,7 @@ public:
             if ( !ok )
             {
                 tracer.Trace( "can't rename the original file to safety name, error %d\n", GetLastError() );
-                return false;
+                return HRESULT_FROM_WIN32( GetLastError() );
             }
     
             // rename the compressed file as the origianal file
@@ -353,7 +353,7 @@ public:
             if ( !ok )
             {
                 tracer.Trace( "can't rename new file to the original file name, error %d\n", GetLastError() );
-                return false;
+                return HRESULT_FROM_WIN32( GetLastError() );
             }
     
             // delete the (renamed) original file
@@ -362,10 +362,10 @@ public:
             if ( !ok )
             {
                 tracer.Trace( "can't delete the saved original file, error %d\n", GetLastError() );
-                return false;
+                return HRESULT_FROM_WIN32( GetLastError() );
             }
         }
 
-        return ok;
-    }
+        return hr;
+    } //CompressTiff
 }; //CTiffCompression

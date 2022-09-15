@@ -1396,7 +1396,8 @@ void ExportCommand( HWND hwnd )
             if ( ok )
             {
                 CTiffCompression tiffCompression;
-                tiffCompression.CompressTiff( g_IWICFactory, awcExport, true );
+                HRESULT hr = tiffCompression.CompressTiff( g_IWICFactory, awcExport, 8 ); // 8 == zip
+                tracer.Trace( "result of compressing tiff: %#x\n", hr );
             }
         }
         else
