@@ -291,7 +291,7 @@ void LoadRegistryParams()
         int val = 0;
         swscanf_s( awcBuffer, L"%d", & val );
 
-        if ( val < 0 || val > 2 )
+        if ( val < 0 || val > 3 )
             val = 1;
 
         g_SortImagesBy = (PVSortImagesBy) val;
