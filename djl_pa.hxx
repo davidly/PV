@@ -22,6 +22,7 @@ class CPathArray
             FILETIME ftCreation;
             FILETIME ftLastWrite;
             FILETIME ftCapture;
+            ULONG ulAttribute;     // can be used to sort on anything, e.g. primary color
         };
 
     private:
@@ -41,6 +42,14 @@ class CPathArray
 
             return ( ulA.QuadPart > ulB.QuadPart ) ? -1 : ( ulA.QuadPart < ulB.QuadPart ) ? 1 : 0;
         } //CompareFT
+
+        static int PIAttributeCompare( const void * a, const void * b )
+        {
+            PathItem *pa = (PathItem *) a;
+            PathItem *pb = (PathItem *) b;
+
+            return ( pa->ulAttribute > pb->ulAttribute ) ? 1 : ( pa->ulAttribute == pb->ulAttribute ) ? 0 : -1;
+        } //PIAttributeCompare
 
         static int PILastWriteCompare( const void * a, const void * b )
         {
@@ -139,6 +148,11 @@ class CPathArray
                 swap( elements[ a ], elements[ b ] );
             }
         } //Randomize
+
+        void SortOnAttribute()
+        {
+            qsort( elements.data(), elements.size(), sizeof PathItem, PIAttributeCompare );
+        } //SortOnAttribute
 
         void SortOnLastWrite()
         {

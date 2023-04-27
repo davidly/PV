@@ -2007,7 +2007,7 @@ int WINAPI wWinMain( HINSTANCE hInstance, HINSTANCE, PWSTR pCmdLine, int nCmdSho
         LocalFree( argv );
     }
 
-    tracer.Enable( enableTracer, NULL, emptyTracerFile );
+    tracer.Enable( enableTracer, (char *) NULL, emptyTracerFile );
 
     if ( 0 == awcInput[ 0 ] )
         wcscpy_s( awcInput, _countof( awcInput ), L".\\" );

@@ -36,6 +36,7 @@ private:
 
     BOOL MoveFileWithRetries( WCHAR const * oldname, WCHAR const * newname )
     {
+        //printf( "renaming %ws to %ws\n", oldname, newname );
         BOOL ok;
     
         for ( int attempt = 0; attempt < 20; attempt++ )
@@ -45,10 +46,40 @@ private:
                 break;
     
             Sleep( 500 );
+            //printf( "r" );
         }
     
         return ok;
     } //MoveFileWithRetries
+
+    BOOL DeleteFileWithRetries( WCHAR const * path )
+    {
+        //printf( "deleting %ws\n", path );
+        BOOL ok;
+
+        for ( int attempt = 0; attempt < 20; attempt++ )
+        {
+            ok = DeleteFile( path );
+            if ( ok )
+                break;
+
+            DWORD err = GetLastError();
+
+            if ( ERROR_FILE_NOT_FOUND )
+            {
+                ok = true;
+                break;
+            }
+
+            if ( ERROR_SHARING_VIOLATION != err )
+                break;
+    
+            Sleep( 500 );
+            //printf( "d" );
+        }
+    
+        return ok;
+    } //DeleteFileWithRetries
 
     HRESULT SetTiffCompression( ComPtr<IWICImagingFactory> & wicFactory, WCHAR const * pwcPath, WCHAR const * pwcOutputPath, DWORD compressionMethod )
     {
@@ -316,7 +347,13 @@ public:
             return HRESULT_FROM_WIN32( GetLastError() );
         }
     
-        ok = DeleteFile( awcOutputPath );
+        ok = DeleteFileWithRetries( awcOutputPath );
+        if ( !ok )
+        {
+            tracer.Trace( "can't delete existing temporary file\n" );
+            return HRESULT_FROM_WIN32( GetLastError() );
+        }
+
         DWORD currentCompression = 0;
         HRESULT hr = GetTiffCompression( wicFactory, awcInputPath, &currentCompression );
         if ( FAILED( hr ) )
@@ -339,7 +376,16 @@ public:
             WCHAR awcSafety[ MAX_PATH ];
             wcscpy( awcSafety, awcInputPath );
             wcscat( awcSafety, L"-saved" );
-    
+
+            // if it exists from a prior failed run, delete the safety file
+
+            ok = DeleteFileWithRetries( awcSafety );
+            if ( !ok )
+            {
+                tracer.Trace( "can't delete the residual safety file, error %d\n", GetLastError() );
+                return HRESULT_FROM_WIN32( GetLastError() );
+            }
+
             ok = MoveFileWithRetries( awcInputPath, awcSafety );
             if ( !ok )
             {
@@ -358,7 +404,7 @@ public:
     
             // delete the (renamed) original file
     
-            ok = DeleteFile( awcSafety );
+            ok = DeleteFileWithRetries( awcSafety );
             if ( !ok )
             {
                 tracer.Trace( "can't delete the saved original file, error %d\n", GetLastError() );

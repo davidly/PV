@@ -13,6 +13,12 @@
 
 #define LIBRAW_NO_WINSOCK2
 
+#ifdef _MSC_VER
+#define slashChar '\\'
+#else
+#define slashChar '/'
+#endif
+
 // Put libraw.h in your INCLUDE path and libraw_static.lib in your LIB path
 
 #include <libraw.h>
@@ -33,7 +39,6 @@ class CLibRaw
                 return 0;
 
             unique_ptr<LibRaw> rawProcessor( new LibRaw() );
-  
             rawProcessor->imgdata.params.output_tiff = 1;
             rawProcessor->imgdata.params.output_bps = bpc;
 
@@ -43,7 +48,6 @@ class CLibRaw
             wcstombs_s( &converted, inputFile.get(), len, pwcPath, len );
   
             int ret = rawProcessor->open_file( inputFile.get() );
-
             if ( LIBRAW_SUCCESS != ret )
             {
                 tracer.Trace( "libraw can't (error %d) open input file %s\n", ret, inputFile.get() );
@@ -51,7 +55,6 @@ class CLibRaw
             }
   
             ret = rawProcessor->unpack();
-
             if ( LIBRAW_SUCCESS != ret )
             {
                 tracer.Trace( "libraw can't (error %d) unpack input file %s\n", ret, inputFile.get() );
@@ -59,7 +62,6 @@ class CLibRaw
             }
 
             ret = rawProcessor->dcraw_process();
-  
             if ( LIBRAW_SUCCESS != ret )
             {
                 tracer.Trace( "libraw can't (error %d) process input file %s\n", ret, inputFile.get() );
@@ -68,7 +70,6 @@ class CLibRaw
 
             int bps;
             rawProcessor->get_mem_image_format( &width, &height, &colors, &bps );
-
             if ( bpc != bps )
             {
                 tracer.Trace("libraw in-memory format not as expected: width %d, height %d, colors %d, bps %d\n", width, height, colors, bps );
@@ -78,7 +79,6 @@ class CLibRaw
             int stride = width * colors * bps / 8;
             unique_ptr<byte> data( new byte[ height * stride ] );
             ret = rawProcessor->copy_mem_image( data.get(), stride, true );
-
             if ( LIBRAW_SUCCESS != ret )
             {
                 tracer.Trace( "libraw can't (error %d) copy memory image for file file %s\n", ret, inputFile.get() );
@@ -158,7 +158,16 @@ class CLibRaw
                 strcpy( xmpFile.get(), outputFile.get() );
                 dot = strrchr( xmpFile.get(), '.' );
                 strcpy( dot, pcXMPExt );
-            
+
+                size_t inlen = strlen( inputFile.get() );
+                unique_ptr<char> justFile( new char[ 1 + inlen ] );
+                strcpy( justFile.get(), inputFile.get() );
+                char * basen = strrchr( justFile.get(), slashChar );
+                if ( 0 == basen )
+                    basen = justFile.get();
+                else
+                    basen = 1 + basen;
+
                 FILE * fp = fopen( xmpFile.get(), "w" );
                 if ( fp )
                 {
@@ -168,12 +177,13 @@ class CLibRaw
                        R"(  <rdf:Description rdf:about="")"                                                                              "\n"
                        R"(    xmlns:xmp="http://ns.adobe.com/xap/1.0/")"                                                                 "\n"
                        R"(   xmp:Rating="1")"                                                                                            "\n"
+                       R"(   crs:RawFileName="%s")"                                                                                      "\n"                                                                                       
                        R"(  </rdf:Description>)"                                                                                         "\n"
                        R"( </rdf:RDF>)"                                                                                                  "\n"
                        R"(</x:xmpmeta>)"                                                                                                 "\n"
                        ;
 
-                    fprintf( fp, "%s", pcRating1XMP );
+                    fprintf( fp, pcRating1XMP, basen );
                     fclose( fp );
                 }
                 else

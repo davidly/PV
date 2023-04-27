@@ -965,7 +965,7 @@ private:
                     g_ExposureNum = 1;
                     g_ExposureDen = head.offset;
                 }
-                else if ( 33437 == head.id && 5 == head.type )
+                else if ( 33437 == head.id && 5 == head.type ) // FNumber
                 {
                     TwoDWORDs td;
                     GetTwoDWORDs( head.offset + headerBase, &td, littleEndian );
@@ -980,6 +980,13 @@ private:
                 {
                     __int64 stringOffset = ( head.count <= 4 ) ? ( IFDOffset - 4 ) : head.offset;
                     GetString( stringOffset + headerBase, g_acDateTimeOriginal, _countof( g_acDateTimeOriginal ), head.count );
+                }
+                else if ( 37378 == head.id && 5 == head.type ) // ApertureValue
+                {
+                    TwoDWORDs td;
+                    GetTwoDWORDs( head.offset + headerBase, &td, littleEndian );
+                    g_ApertureNum = td.dw1;
+                    g_ApertureDen = td.dw2;
                 }
                 else if ( 37386 == head.id && 5 == head.type )
                 {
