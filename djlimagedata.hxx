@@ -156,6 +156,8 @@ private:
     int g_ISO;
     int g_ExposureNum;
     int g_ExposureDen;
+    int g_FNumberNum;
+    int g_FNumberDen;
     int g_ApertureNum;
     int g_ApertureDen;
     int g_ExposureProgram;
@@ -970,14 +972,8 @@ private:
                     TwoDWORDs td;
                     GetTwoDWORDs( head.offset + headerBase, &td, littleEndian );
 
-                    // Use aperture if it exists and fall back to FNumber if that's all we have.
-                    // Different Leica cameras generate DNG files with all 3 permutations of one, the other, or both
-
-                    if ( -1 == g_ApertureNum )
-                    {
-                        g_ApertureNum = td.dw1;
-                        g_ApertureDen = td.dw2;
-                    }
+                    g_FNumberNum = td.dw1;
+                    g_FNumberDen = td.dw2;
                 }
                 else if ( 34850 == head.id )
                     g_ExposureProgram = head.offset;
@@ -992,6 +988,7 @@ private:
                 {
                     TwoDWORDs td;
                     GetTwoDWORDs( head.offset + headerBase, &td, littleEndian );
+
                     g_ApertureNum = td.dw1;
                     g_ApertureDen = td.dw2;
                 }
@@ -2987,6 +2984,8 @@ private:
         g_ISO = -1;
         g_ExposureNum = -1;
         g_ExposureDen = -1;
+        g_FNumberNum = -1;
+        g_FNumberDen = -1;
         g_ApertureNum = -1;
         g_ApertureDen = -1;
         g_ExposureProgram = -1;
@@ -3250,8 +3249,18 @@ public:
                 current += sprintf_s( current, past - current, "%d/%d sec\n", g_ExposureNum, g_ExposureDen );
         }
     
-        if ( -1 != g_ApertureNum && -1 != g_ApertureDen && 0 != g_ApertureDen )
-            current += sprintf_s( current, past - current, "f / %.1lf\n", (double) g_ApertureNum / (double) g_ApertureDen );
+        if ( -1 != g_FNumberNum && -1 != g_FNumberDen && 0 != g_FNumberDen )
+        {
+            current += sprintf_s( current, past - current, "f / %.1lf\n", (double) g_FNumberNum / (double) g_FNumberDen );
+        }
+        else if ( -1 != g_ApertureNum && -1 != g_ApertureDen && 0 != g_ApertureDen )
+        {
+            // compute f number from aperture
+
+            double aperture = (double) g_ApertureNum / (double) g_ApertureDen;
+            double fnumber = pow( sqrt( 2.0 ), aperture );
+            current += sprintf_s( current, past - current, "f / %.1lf\n", fnumber );
+        }
     
         // Try to find both the focal length and effective focal length (if it's different / not full frame)
     
