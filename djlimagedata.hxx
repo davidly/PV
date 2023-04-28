@@ -969,8 +969,15 @@ private:
                 {
                     TwoDWORDs td;
                     GetTwoDWORDs( head.offset + headerBase, &td, littleEndian );
-                    g_ApertureNum = td.dw1;
-                    g_ApertureDen = td.dw2;
+
+                    // Use aperture if it exists and fall back to FNumber if that's all we have.
+                    // Different Leica cameras generate DNG files with all 3 permutations of one, the other, or both
+
+                    if ( -1 == g_ApertureNum )
+                    {
+                        g_ApertureNum = td.dw1;
+                        g_ApertureDen = td.dw2;
+                    }
                 }
                 else if ( 34850 == head.id )
                     g_ExposureProgram = head.offset;
