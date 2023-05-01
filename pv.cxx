@@ -140,6 +140,7 @@ const WCHAR * imageExtensions[] =
     L"bmp",
     L"cr2",
     L"cr3",
+    L"cur",
     L"dng",
     L"flac",
     L"gif",
@@ -164,6 +165,7 @@ const WCHAR * imageExtensions[] =
 const WCHAR * nonEmbedExtensions[] =
 {
     L"bmp",
+    L"cur",
     L"gif",
     L"heic",   
     L"hif",
@@ -1106,8 +1108,8 @@ extern "C" INT_PTR WINAPI HelpDialogProc( HWND hdlg, UINT message, WPARAM wParam
                                      "\t- iPhone .heic photos require a free Microsoft Store codec.\n"
                                      "\t- WIC leaks handles for .heic photos.\n"
                                      "\t- WIC crashes for DNGs created by Lightroom's \"enhance.\"\n"
-                                     "\t- Tested with 3fr, arw, bmp, cr2, cr3, dng, flac, gif, heic, hif, ico,\n"
-                                     "\t      jfif, jpeg, jpg, mp3, nef, orf, png, raf, rw2, tif, tiff.\n"
+                                     "\t- Tested with 3fr, arw, bmp, cr2, cr3, cur, dng, flac, gif, heic, hif,\n"
+                                     "\t      ico, jfif, jpeg, jpg, mp3, nef, orf, png, raf, rw2, tif, tiff.\n"
                                      "\t- Tested with RAW from Apple, Canon, Fujifilm, Hasselblad, Leica,\n"
                                      "\t      Nikon, Olympus, Panasonic, Pentax, Ricoh, Sigma, Sony.\n"
                                      "\t- Rotate tries to update Exif Orientation, but may re-encode the file.\n"
