@@ -336,7 +336,6 @@ HRESULT CreateJustSwapChainBitmap()
 {
     ComPtr<IDXGISurface> surface;
     HRESULT hr = g_swapChain->GetBuffer( 0, __uuidof(surface), reinterpret_cast<void **> ( surface.GetAddressOf() ) );
-
     if ( FAILED( hr ) )
     {
         tracer.Trace( "can't create IDXGISurface %#x\n", hr );
@@ -347,7 +346,6 @@ HRESULT CreateJustSwapChainBitmap()
 
     ComPtr<ID2D1Bitmap1> bitmap;
     hr = g_target->CreateBitmapFromDxgiSurface( surface.Get(), bprops, bitmap.GetAddressOf() );
-
     if ( FAILED( hr ) )
     {
         tracer.Trace( "can't create ID2D1Bitmap1 %#x\n", hr );
@@ -386,7 +384,6 @@ HRESULT CreateDeviceSwapChainBitmap( HWND hwnd )
 
     ComPtr<IDXGIDevice> dxdevice;
     hr = d3device.As( &dxdevice );
-
     if ( FAILED( hr ) )
     {
         tracer.Trace( "can't get idxgiDevice %#x\n", hr );
@@ -395,7 +392,6 @@ HRESULT CreateDeviceSwapChainBitmap( HWND hwnd )
 
     ComPtr<IDXGIAdapter> adapter;
     hr = dxdevice->GetAdapter( adapter.GetAddressOf() );
-
     if ( FAILED( hr ) )
     {
         tracer.Trace( "can't get idxgiAdapter %#x\n", hr );
@@ -404,7 +400,6 @@ HRESULT CreateDeviceSwapChainBitmap( HWND hwnd )
 
     ComPtr<IDXGIFactory2> factory;
     hr = adapter->GetParent( __uuidof( factory ), reinterpret_cast<void **> ( factory.GetAddressOf() ) );
-
     if ( FAILED( hr ) )
     {
         tracer.Trace( "can't get idxgiFactory2 %#x\n", hr );
@@ -417,7 +412,6 @@ HRESULT CreateDeviceSwapChainBitmap( HWND hwnd )
     props.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
     props.BufferCount = 2;
     hr = factory->CreateSwapChainForHwnd( d3device.Get(), hwnd, &props, NULL, NULL, g_swapChain.GetAddressOf() );
-
     if ( FAILED( hr ) )
     {
         tracer.Trace( "can't create swapchain %#x\n", hr );
@@ -426,7 +420,6 @@ HRESULT CreateDeviceSwapChainBitmap( HWND hwnd )
 
     ComPtr<ID2D1Device> device;
     hr = g_ID2DFactory->CreateDevice( dxdevice.Get(), device.GetAddressOf() );
-
     if ( FAILED( hr ) )
     {
         tracer.Trace( "can't create ID2D1Device %#x\n", hr );
@@ -434,7 +427,6 @@ HRESULT CreateDeviceSwapChainBitmap( HWND hwnd )
     }
 
     hr = device->CreateDeviceContext( D2D1_DEVICE_CONTEXT_OPTIONS_ENABLE_MULTITHREADED_OPTIMIZATIONS, g_target.GetAddressOf() );
-
     if ( FAILED( hr ) )
     {
         tracer.Trace( "can't create device context %#x\n", hr );
@@ -480,7 +472,6 @@ HRESULT CreateTargetAndD2DBitmap( HWND hwnd )
         g_target.Reset();
         g_swapChain.Reset();
         hr = CreateDeviceSwapChainBitmap( hwnd );
-
         if ( FAILED( hr ) )
         {
             tracer.Trace( "CreateDeviceSwapChainBitmap failed with %#x\n", hr );
@@ -667,7 +658,6 @@ HRESULT LoadCurrentFileD2D( HWND hwnd, const WCHAR * pwcPath, IStream * pStream,
     if ( SUCCEEDED( hr ) )
     {
         hr = formatConverter->Initialize( bitmapSource.Get(), GUID_WICPixelFormat32bppPBGRA, WICBitmapDitherTypeNone, NULL, 0.f, WICBitmapPaletteTypeCustom );
-
         if ( SUCCEEDED( hr ) )
         {
             g_BitmapSource.Reset();
@@ -682,7 +672,6 @@ HRESULT LoadCurrentFileD2D( HWND hwnd, const WCHAR * pwcPath, IStream * pStream,
     {
         ComPtr<IWICBitmapFlipRotator> rotator;
         HRESULT hr = g_IWICFactory->CreateBitmapFlipRotator( rotator.GetAddressOf() );
-
         if ( SUCCEEDED( hr ) )
         {
             WICBitmapTransformOptions wbto = WICBitmapTransformRotate0;
@@ -814,7 +803,6 @@ bool LoadCurrentFileUsingD2D( HWND hwnd )
         stream.Attach( pStream );
 
         HRESULT hr = LoadCurrentFileD2D( hwnd, NULL, stream.Get(), &availableWidth, &availableHeight, orientationValue, false );
-
         if ( FAILED( hr ) )
         {
             tracer.Trace( "  failed error %#x to load embedded image for %ws\n", hr, pwcFile );
@@ -827,7 +815,6 @@ bool LoadCurrentFileUsingD2D( HWND hwnd )
     else if ( !isFlacOrMP3 )
     {
         HRESULT hr = LoadCurrentFileD2D( hwnd, pwcFile, NULL, &availableWidth, &availableHeight, orientationValue, useLibRaw );
-
         if ( FAILED( hr ) )
         {
             tracer.Trace( "  LoadCurrentFileD2D failed with error %#x, can't load file %ws\n", hr, pwcFile );
@@ -848,7 +835,6 @@ bool LoadCurrentFileUsingD2D( HWND hwnd )
     g_acImageMetadata[ 0 ] = 0;
     g_awcImageMetadata[ 0 ] = 0;
     bool ok = g_pImageData->GetInterestingMetadata( pwcFile, g_acImageMetadata, _countof( g_acImageMetadata ), availableWidth, availableHeight );
-
     if ( ok )
     {
         size_t cConverted = 0;
@@ -912,7 +898,6 @@ void LoadNextImage( HWND hwnd, PVMoveDirection md )
     do
     {
         bool worked = LoadNextImageInternal( hwnd, md );
-
         if ( worked )
             return;
 
@@ -997,7 +982,6 @@ void PutPathInClipboard( const WCHAR * pwcPath )
     size_t bytes = sizeof( DROPFILES ) + ( ( len + 2 ) * sizeof( WCHAR ) );
 
     DROPFILES * df = (DROPFILES *) GlobalAlloc( GMEM_FIXED, bytes );
-
     if ( 0 != df )
     {
         ZeroMemory( df, bytes );
@@ -1015,7 +999,6 @@ void PutPathInClipboard( const WCHAR * pwcPath )
 void PutBitmapInClipboard()
 {
     HBITMAP hbm = CreateHBITMAP( * g_BitmapSource.Get() );
-    
     if ( 0 != hbm )
     {
         // The HBITMAP in its current form can't go in the clipboard.
@@ -1031,7 +1014,6 @@ void PutBitmapInClipboard()
             if ( NULL != hdib )
             {
                 HANDLE h = SetClipboardData( CF_BITMAP, hdib );
-    
                 if ( NULL == h )
                     DeleteObject( hdib ); // failure case
             }
@@ -1286,7 +1268,6 @@ void OnPaint( HWND hwnd, int mouseX, int mouseY, PVZoomLevel zoomLevel )
         g_target->EndDraw();
 
         hr = g_swapChain->Present( 1, 0 );
-
         if ( S_OK != hr && DXGI_STATUS_OCCLUDED != hr )
             ReleaseDevice();
 
@@ -1349,7 +1330,6 @@ void DeleteCommand( HWND hwnd )
         g_D2DBitmap.Reset();
 
         BOOL deleteWorked = DeleteFile( g_pImageArray->Get( g_currentBitmapIndex ) );
-
         if ( deleteWorked )
         {
             g_pImageArray->Delete( g_currentBitmapIndex );
@@ -1362,12 +1342,10 @@ void DeleteCommand( HWND hwnd )
             DWORD err = GetLastError();
             unique_ptr<WCHAR> deleteFailed( new WCHAR[ 100 ] );
             int ret = LoadStringW( NULL, ID_PV_STRING_DELETE_FAILED, deleteFailed.get(), 100 );
-
             if ( 0 != ret )
             {
                 static WCHAR awcBuffer[ 100 ];
                 int len = swprintf_s( awcBuffer, _countof( awcBuffer ), deleteFailed.get(), err );
-
                 if ( -1 != len )
                     MessageBoxEx( hwnd, awcBuffer, NULL, MB_OK, 0 );
             }
@@ -1731,11 +1709,9 @@ LRESULT CALLBACK WindowProc( HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam 
 
                         unique_ptr<WCHAR> mapUrl( new WCHAR[ 100 ] );
                         int ret = LoadStringW( NULL, ID_PV_STRING_MAP_URL, mapUrl.get(), 100 );
-
                         if ( 0 != ret )
                         {
                             int len = swprintf_s( awcBuffer, _countof( awcBuffer ), mapUrl.get(), lat, lon );
-
                             if ( -1 != len )
                                 ShellExecute( 0, 0, awcBuffer, 0, 0, SW_SHOW );
                         }
@@ -1848,29 +1824,18 @@ LRESULT CALLBACK WindowProc( HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam 
         case WM_KEYDOWN:
         {
             if ( ( 0x43 == wParam ) && ( GetKeyState( VK_CONTROL ) & 0x8000 ) ) // ^c for copy
-            {
                 CopyCommand( hwnd );
-            }
             else if ( ( 0x44 == wParam ) && ( GetKeyState( VK_CONTROL ) & 0x8000 ) ) // ^d for delete
-            {
                 DeleteCommand( hwnd );
-            }
             else if ( 0x54 == wParam ) // T
-            {
                 RatingCommand( hwnd );
-            }
             else if ( wParam >= '0' && wParam <= '5' )
-            {
                 RatingCommand( hwnd, wParam );
-            }
             else if ( VK_DELETE == wParam )
-            {
                 DeleteCommand( hwnd );
-            }
             else if ( VK_F1 == wParam )
             {
                 HWND helpDialog = CreateDialog( NULL, MAKEINTRESOURCE( ID_PV_HELP_DIALOG ), hwnd, HelpDialogProc );
-
                 ShowWindow( helpDialog, SW_SHOW );
             }
             else if ( VK_F11 == wParam )
@@ -2022,7 +1987,6 @@ int WINAPI wWinMain( HINSTANCE hInstance, HINSTANCE, PWSTR pCmdLine, int nCmdSho
     }
 
     DWORD attr = GetFileAttributesW( awcPhotoPath );
-
     if ( INVALID_FILE_ATTRIBUTES != attr )
     {
         if ( 0 == ( attr & FILE_ATTRIBUTE_DIRECTORY ) )
@@ -2073,7 +2037,6 @@ int WINAPI wWinMain( HINSTANCE hInstance, HINSTANCE, PWSTR pCmdLine, int nCmdSho
     wc.hbrBackground = brushBlack;
     wc.lpszClassName = CLASS_NAME;
     ATOM classAtom = RegisterClassEx( &wc );
-
     if ( 0 == classAtom )
     {
         tracer.Trace( "can't register windows class, error %d\n", GetLastError() );
@@ -2101,7 +2064,6 @@ int WINAPI wWinMain( HINSTANCE hInstance, HINSTANCE, PWSTR pCmdLine, int nCmdSho
         return 0;
 
     hr = CoCreateInstance( CLSID_WICImagingFactory, NULL, CLSCTX_INPROC_SERVER, __uuidof( IWICImagingFactory ), reinterpret_cast<void **> ( g_IWICFactory.GetAddressOf() ) );
-
     if ( FAILED( hr ) )
     {
         tracer.Trace( "can't initialize wic: %#x\n", hr );
@@ -2110,7 +2072,6 @@ int WINAPI wWinMain( HINSTANCE hInstance, HINSTANCE, PWSTR pCmdLine, int nCmdSho
 
     D2D1_FACTORY_OPTIONS options = {};
     hr = D2D1CreateFactory( D2D1_FACTORY_TYPE_SINGLE_THREADED, options, g_ID2DFactory.GetAddressOf() );
-
     if ( FAILED( hr ) )
     {
         tracer.Trace( "can't initialize d2d: %#x\n", hr );
@@ -2118,7 +2079,6 @@ int WINAPI wWinMain( HINSTANCE hInstance, HINSTANCE, PWSTR pCmdLine, int nCmdSho
     }
 
     hr = DWriteCreateFactory( DWRITE_FACTORY_TYPE_SHARED, __uuidof( g_dwriteFactory ), reinterpret_cast<IUnknown **> ( g_dwriteFactory.GetAddressOf() ) );
-
     if ( FAILED( hr ) )
     {
         tracer.Trace( "can't create DWrite factory %#x\n", hr );
@@ -2126,7 +2086,6 @@ int WINAPI wWinMain( HINSTANCE hInstance, HINSTANCE, PWSTR pCmdLine, int nCmdSho
     }
 
     hr = g_dwriteFactory->CreateTextFormat( L"Tahoma", NULL, DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, (float) fontHeight, L"", g_dwriteTextFormat.GetAddressOf() );
-
     if ( FAILED( hr ) )
     {
         tracer.Trace( "can't create dwrite text format %#x\n", hr );
@@ -2150,7 +2109,6 @@ int WINAPI wWinMain( HINSTANCE hInstance, HINSTANCE, PWSTR pCmdLine, int nCmdSho
     WCHAR ** pwcExtensions = (WCHAR **) imageExtensions;
     int cExtensions = _countof( imageExtensions );
     WCHAR * pwcExtension = awcExtension;
-
     if ( 0 != awcExtension[0] )
     {
         pwcExtensions = &pwcExtension;
