@@ -3086,9 +3086,6 @@ private:
     bool SameFocalLength( double a, double b )
     {
         double diff = fabs( a - b );
-    
-    //    tracer.Trace( "samefl, a %lf, b %lf\n", a, b );
-    
         return ( ( diff / a * 100.0 ) < 5.0 );
     } //SameFocualLength
     
@@ -3117,6 +3114,46 @@ private:
         return DBL_MAX;
     } //GetComputedCropFactor
 
+    const char * FindAspectRatio( int w, int h )
+    {
+        // find the closest matching whole integer aspect ratio 1x20 to 20x1
+
+        static char acAspect[ 20 ];
+        acAspect[ 0 ] = 0;
+
+        if ( 0 == w || 0 == h )
+            return acAspect;
+
+        // this algorithm isn't efficient
+          
+        double a = (double) w / (double) h;
+        double target = ( a < 1.0 ) ? a : ( 1.0 / a );
+        int bestw = -1;
+        int besth = -1;
+        double bestdiff = 1000000.0;
+        const int maxdim = 20;
+
+        for ( int i = 1; i <= maxdim; i++ )
+        {
+            double di = (double) i;
+            for ( int j = 1; j <= maxdim; j++ )
+            {
+                double diff = fabs( ( di / (double) j ) - a );
+                if ( diff < bestdiff )
+                {
+                    bestdiff = diff;
+                    bestw = i;
+                    besth = j;
+                }
+            }
+        }
+
+        if ( bestdiff < 0.01 )
+            sprintf_s( acAspect, _countof( acAspect ), " (%dx%d)", bestw, besth );
+
+        return acAspect;
+    } //FindAspectRatio
+    
 public:
 
     double FindFocalLength( const WCHAR * pwcPath, double &focalLength, int & flIn35mmFilm, double &flGuess, double &flComputed, char * pcModel, int modelLen )
@@ -3171,6 +3208,30 @@ public:
         return flBestGuess;
     } //FindFocalLength
 
+    bool FindFNumber( const WCHAR * pwcPath, double * pFNumber )
+    {
+        UpdateCache( pwcPath );
+
+        bool found = false;
+    
+        if ( -1 != g_FNumberNum && -1 != g_FNumberDen && 0 != g_FNumberDen )
+        {
+            *pFNumber = (double) g_FNumberNum / (double) g_FNumberDen;
+            found = true;
+        }
+        else if ( -1 != g_ApertureNum && -1 != g_ApertureDen && 0 != g_ApertureDen )
+        {
+            // Compute f number from aperture. The Leica M11 Monochrom's EXIF data has Aperture and not FNumber
+            // That camera guesses the Aperture based on the light meter and exposure.
+
+            double aperture = (double) g_ApertureNum / (double) g_ApertureDen;
+            *pFNumber = pow( sqrt( 2.0 ), aperture );
+            found = true;
+        }
+
+        return found;
+    } //FindFNumber
+
     bool FindDateTime( const WCHAR * pwcPath, char * pcDateTime, int buflen )
     {
         UpdateCache( pwcPath );
@@ -3199,7 +3260,7 @@ public:
     
         return ( 0 != *pcDateTime );
     } //FindDateTime
-    
+
     bool GetInterestingMetadata( const WCHAR * pwcPath, char * pc, int buflen, int previewWidth, int previewHeight )
     {
         UpdateCache( pwcPath );
@@ -3227,10 +3288,12 @@ public:
             if ( SubstantiallyDifferentResolution( w, previewWidth ) )
                 current += sprintf_s( current, past - current, "%d x %d (%d x %d)\n", w, h, previewWidth, previewHeight );
             else
-                current += sprintf_s( current, past - current, "%d x %d\n", w, h );
+                current += sprintf_s( current, past - current, "%d x %d", w, h );
+
+            current += sprintf_s( current, past - current, "%s\n", FindAspectRatio( w, h ) );
         }
         else
-            current += sprintf_s( current, past - current, "%d x %d\n", previewWidth, previewHeight ); // BMP, PNG, and any other non-supported formats
+            current += sprintf_s( current, past - current, "%d x %d%s\n", previewWidth, previewHeight, FindAspectRatio( previewWidth, previewHeight ) ); // BMP, PNG, and any other non-supported formats
     
         if ( -1 != g_ISO )
             current += sprintf_s( current, past - current, "ISO %d\n", g_ISO );
@@ -3255,7 +3318,7 @@ public:
         }
         else if ( -1 != g_ApertureNum && -1 != g_ApertureDen && 0 != g_ApertureDen )
         {
-            // compute f number from aperture
+            // compute f number from aperture. The Leica M11 Monochrom's EXIF data has Aperture and not FNumber
 
             double aperture = (double) g_ApertureNum / (double) g_ApertureDen;
             double fnumber = pow( sqrt( 2.0 ), aperture );
@@ -3328,7 +3391,7 @@ public:
 
         if ( 0 != g_RatingInXMP_Offset )
             current += sprintf_s( current, past - current, "rating: %d\n", g_RatingInXMP );
-    
+
         // remove the trailing newline
     
         if ( ( 0 != *pc ) && ( '\n' == * ( current - 1 ) ) )
