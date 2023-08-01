@@ -9,7 +9,7 @@ PV.EXE is built in github and available as an artifact under the most recent bui
 under Actions, in a zip file. Otherwise, build it yourself.
 
 PV uses WIC for opening images and D2D for display. It was tested with files
-including 3fr, arw, bmp, cr2, cr3, dng, flac, gif, heic, hif, ico, jfif/jpeg/jpg,
+including 3fr, arw, bmp, cr2, cr3, cur, dng, flac, gif, heic, hif, ico, jfif/jpeg/jpg,
 mp3, nef, orf, png, raf, rw2, tif/tiff.
 
 ![PV Screenshot](pv3.png)
@@ -26,7 +26,8 @@ triage is faster.
 
 PV can optionally be built to use LibRaw, a RAW processing library. PV has a context
 menu to always use LibRaw for RAW files, use LibRaw for RAW files with tiny embedded
-JPGs, or only use LibRaw for RAW files with no embedded JPG.
+JPGs, or only use LibRaw for RAW files with no embedded JPG. If LibRaw isn't used,
+PV displays the largest embedded image in the file (likely JPG).
 
 LibRaw can be found here: https://github.com/LibRaw/LibRaw
 
@@ -47,7 +48,7 @@ Building LibRaw:
     To build LibRaw, use "nmake makefile.msvc" from a 64-bit VS CMD prompt.
 
 To build PV, use m.bat in a "x64 Native Tools Command Prompt for VS 2019", or the
-equivalent for your version of Visual Studio.
+equivalent for your version of Visual Studio (2022 works).
 
 In m.bat, define or undefine PV_USE_LIBRAW for both rc and cl commands to enable use
 of LibRaw. Also, add the LibRaw include files to your INCLUDE environment variable and
