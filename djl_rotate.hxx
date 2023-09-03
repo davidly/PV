@@ -313,7 +313,7 @@ private:
                 if ( SUCCEEDED( hr ) && useFlipRotator )
                 {
                     ComPtr<IWICBitmapFlipRotator> rotator;
-                    HRESULT hr = pIWICFactory->CreateBitmapFlipRotator( rotator.GetAddressOf() );
+                    hr = pIWICFactory->CreateBitmapFlipRotator( rotator.GetAddressOf() );
                     if ( FAILED( hr ) ) tracer.Trace( "createbitmapfliprotator: %#x\n", hr );
             
                     if ( SUCCEEDED( hr ) )

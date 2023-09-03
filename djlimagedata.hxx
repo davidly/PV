@@ -875,7 +875,7 @@ private:
                 {
                     if ( 0 == g_acSerialNumber )
                     {
-                        sprintf_s( g_acSerialNumber, _countof( g_acSerialNumber ), "%d", head.offset );
+                        sprintf_s( g_acSerialNumber, _countof( g_acSerialNumber ), "%u", head.offset );
                         //tracer.Trace( "canon makernote serial number: %s\n", g_acSerialNumber );
                     }
                 }
@@ -1908,9 +1908,9 @@ private:
                         EnumerateGenericIFD( depth + 1, head.offset, headerBase, littleEndian );
                     else
                     {
-                        for ( size_t i = 0; i < head.count; i++ )
+                        for ( size_t item = 0; item < head.count; item++ )
                         {
-                            DWORD oIFD = GetDWORD( ( i * 4 ) + head.offset + headerBase, littleEndian );
+                            DWORD oIFD = GetDWORD( ( item * 4 ) + head.offset + headerBase, littleEndian );
                             EnumerateGenericIFD( depth + 1, oIFD, headerBase, littleEndian );
                         }
                     }
@@ -2852,8 +2852,8 @@ private:
                     header = maybe;
                     littleEndian = ( 0x4949 == ( header & 0xffff ) );
     
-                    DWORD IFDOffset = GetDWORD( startingOffset, littleEndian );
-                    EnumerateIFD0( 0, IFDOffset, headerBase, littleEndian, pwcExt );
+                    DWORD IFDStartingOffset = GetDWORD( startingOffset, littleEndian );
+                    EnumerateIFD0( 0, IFDStartingOffset, headerBase, littleEndian, pwcExt );
                 }
             }
         }
@@ -3127,7 +3127,6 @@ private:
         // this algorithm isn't efficient
           
         double a = (double) w / (double) h;
-        double target = ( a < 1.0 ) ? a : ( 1.0 / a );
         int bestw = -1;
         int besth = -1;
         double bestdiff = 1000000.0;

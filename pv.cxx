@@ -671,7 +671,7 @@ HRESULT LoadCurrentFileD2D( HWND hwnd, const WCHAR * pwcPath, IStream * pStream,
     if ( SUCCEEDED( hr ) && ( orientation >= 3 ) && ( orientation <= 8 ) && !useLibRaw )
     {
         ComPtr<IWICBitmapFlipRotator> rotator;
-        HRESULT hr = g_IWICFactory->CreateBitmapFlipRotator( rotator.GetAddressOf() );
+        hr = g_IWICFactory->CreateBitmapFlipRotator( rotator.GetAddressOf() );
         if ( SUCCEEDED( hr ) )
         {
             WICBitmapTransformOptions wbto = WICBitmapTransformRotate0;
@@ -1567,7 +1567,7 @@ LRESULT CALLBACK WindowProc( HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam 
                 GetWindowPlacement( hwnd, &wp );
             }
     
-            int len = swprintf_s( awcBuffer, _countof( awcBuffer ), L"%d %d %d %d %d %d %d %d %d %d",
+            int len = swprintf_s( awcBuffer, _countof( awcBuffer ), L"%u %u %d %d %d %d %d %d %d %d",
                                   wp.flags, wp.showCmd, wp.ptMinPosition.x, wp.ptMinPosition.y, wp.ptMaxPosition.x, wp.ptMaxPosition.y,
                                   wp.rcNormalPosition.left, wp.rcNormalPosition.top, wp.rcNormalPosition.right, wp.rcNormalPosition.bottom );
             if ( -1 != len )
@@ -1919,7 +1919,7 @@ LRESULT CALLBACK WindowProc( HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam 
     return DefWindowProc( hwnd, uMsg, wParam, lParam );
 } //WindowProc
 
-int WINAPI wWinMain( HINSTANCE hInstance, HINSTANCE, PWSTR pCmdLine, int nCmdShow )
+int WINAPI wWinMain( _In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPWSTR pCmdLine, _In_ int nCmdShow )
 {
     static WCHAR awcPhotoPath[ MAX_PATH + 2 ] = { 0 };
     static WCHAR awcInput[ MAX_PATH ] = { 0 };
@@ -2017,7 +2017,7 @@ int WINAPI wWinMain( HINSTANCE hInstance, HINSTANCE, PWSTR pCmdLine, int nCmdSho
     BOOL placementFound = CDJLRegistry::readStringFromRegistry( HKEY_CURRENT_USER, REGISTRY_APP_NAME, REGISTRY_WINDOW_POSITION, awcPos, sizeof( awcPos ) );
     if ( placementFound )
     {
-        int x = swscanf_s( awcPos, L"%d %d %d %d %d %d %d %d %d %d",
+        int x = swscanf_s( awcPos, L"%u %u %d %d %d %d %d %d %d %d",
                            &wp.flags, &wp.showCmd, &wp.ptMinPosition.x, &wp.ptMinPosition.y, &wp.ptMaxPosition.x, &wp.ptMaxPosition.y,
                            &wp.rcNormalPosition.left, &wp.rcNormalPosition.top, &wp.rcNormalPosition.right, &wp.rcNormalPosition.bottom );
         if ( 10 != x )
