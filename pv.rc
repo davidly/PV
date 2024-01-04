@@ -57,6 +57,7 @@ BEGIN
             MENUITEM "Last Write Time",          ID_PV_SORT_LASTWRITE
             MENUITEM "Path",                     ID_PV_SORT_PATH
         END
+        MENUITEM "Ascending",                    ID_PV_SORT_ASCENDING
         MENUITEM SEPARATOR
         MENUITEM "Rotate &Right\tr",             ID_PV_ROTATE_RIGHT
         MENUITEM "Rotate &Left\tl",              ID_PV_ROTATE_LEFT

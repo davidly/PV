@@ -76,6 +76,7 @@ CDJLTrace tracer;
 #define REGISTRY_PHOTO_DELAY L"PhotoDelay"
 #define REGISTRY_PROCESS_RAW L"ProcessRAW"
 #define REGISTRY_SORT_IMAGES_BY L"SortImagesBy"
+#define REGISTRY_SORT_ASCENDING L"SortAscending"
 #define REGISTRY_SHOW_METADATA L"ShowMetadata"
 #define REGISTRY_IN_F11_FULLSCREEN L"InF11FullScreen"
 
@@ -105,6 +106,7 @@ bool g_showMetadata = true;
 bool g_inF11FullScreen = false;
 PVProcessRAW g_ProcessRAW = pr_Sometimes;
 PVSortImagesBy g_SortImagesBy = si_LastWrite;
+bool g_SortImagesAscending = true;
 
 long long timeMetadata = 0;
 long long timePaint = 0;
@@ -298,6 +300,11 @@ void LoadRegistryParams()
 
         g_SortImagesBy = (PVSortImagesBy) val;
     }
+
+    awcBuffer[ 0 ] = 0;
+    ok = CDJLRegistry::readStringFromRegistry( HKEY_CURRENT_USER, REGISTRY_APP_NAME, REGISTRY_SORT_ASCENDING, awcBuffer, sizeof( awcBuffer ) );
+    if ( ok )
+        g_SortImagesAscending = ( !_wcsicmp( awcBuffer, L"Yes" ) );
 
     awcBuffer[ 0 ] = 0;
     ok = CDJLRegistry::readStringFromRegistry( HKEY_CURRENT_USER, REGISTRY_APP_NAME, REGISTRY_SHOW_METADATA, awcBuffer, sizeof( awcBuffer ) );
@@ -1280,13 +1287,13 @@ void SortImages()
     CCursor hourglass( LoadCursor( NULL, IDC_WAIT ) );
 
     if ( si_LastWrite == g_SortImagesBy )
-        g_pImageArray->SortOnLastWrite();
+        g_pImageArray->SortOnLastWrite( g_SortImagesAscending );
     else if ( si_Creation == g_SortImagesBy )
-        g_pImageArray->SortOnCreation();
+        g_pImageArray->SortOnCreation( g_SortImagesAscending );
     else if ( si_Path == g_SortImagesBy )
-        g_pImageArray->SortOnPath();
+        g_pImageArray->SortOnPath( g_SortImagesAscending );
     else if ( si_Capture == g_SortImagesBy )
-        g_pImageArray->SortOnCapture();
+        g_pImageArray->SortOnCapture( g_SortImagesAscending );
 } //SortImages
 
 // Each monitor on which the window resides results in a call (not all monitors).
@@ -1397,7 +1404,7 @@ void RatingCommand( HWND hwnd, char r = 0 )
         // RAW files from recent cameras have the space allocated and the value set to 0.
         // JPG files typically don't have rating set.
 
-        int rating = 0;
+        char rating = 0;
         if ( !g_pImageData->GetRating( g_pImageArray->Get( g_currentBitmapIndex ), rating ) )
             return;
 
@@ -1446,6 +1453,7 @@ LRESULT CALLBACK WindowProc( HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam 
     static bool randomizedYet = false;
     static HMENU hMenu = 0;
     static WCHAR awcBuffer[ 100 ];
+    static WCHAR awcCurrent[ MAX_PATH ];
 
     switch ( uMsg )
     {
@@ -1513,17 +1521,19 @@ LRESULT CALLBACK WindowProc( HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam 
                 LoadCurrentFileUsingD2D( hwnd );
                 InvalidateRect( hwnd, NULL, TRUE );
             }
-            else if ( wParam >= ID_PV_SORT_CAPTURE && wParam <= ID_PV_SORT_PATH )
+            else if ( ( ID_PV_SORT_ASCENDING == wParam ) || ( wParam >= ID_PV_SORT_CAPTURE && wParam <= ID_PV_SORT_PATH ) )
             {
-                int sortIndex = (int) wParam - ID_PV_SORT_CAPTURE;
-                //tracer.Trace( "changing SortImagesBy from %d to %d\n", g_SortImagesBy, sortIndex );
-                g_SortImagesBy = (PVSortImagesBy) sortIndex;
-
+                if ( ID_PV_SORT_ASCENDING == wParam )
+                    g_SortImagesAscending = !g_SortImagesAscending;
+                else
+                {
+                    int sortIndex = (int) wParam - ID_PV_SORT_CAPTURE;
+                    g_SortImagesBy = (PVSortImagesBy) sortIndex;
+                }
+    
                 if ( g_pImageArray )
                 {
-                    static WCHAR awcCurrent[ MAX_PATH ];
                     wcscpy( awcCurrent, g_pImageArray->Get( g_currentBitmapIndex ) );
-
                     SortImages();
 
                     NavigateToStartingPhoto( awcCurrent );
@@ -1575,6 +1585,7 @@ LRESULT CALLBACK WindowProc( HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam 
                 CDJLRegistry::writeStringToRegistry( HKEY_CURRENT_USER, REGISTRY_APP_NAME, REGISTRY_WINDOW_POSITION, awcBuffer );
                 CDJLRegistry::writeStringToRegistry( HKEY_CURRENT_USER, REGISTRY_APP_NAME, REGISTRY_SHOW_METADATA, g_showMetadata ? L"Yes" : L"No" );
                 CDJLRegistry::writeStringToRegistry( HKEY_CURRENT_USER, REGISTRY_APP_NAME, REGISTRY_IN_F11_FULLSCREEN, g_inF11FullScreen ? L"Yes" : L"No" );
+                CDJLRegistry::writeStringToRegistry( HKEY_CURRENT_USER, REGISTRY_APP_NAME, REGISTRY_SORT_ASCENDING, g_SortImagesAscending ? L"Yes" : L"No" );
     
                 len = swprintf_s( awcBuffer, _countof( awcBuffer ), L"%d", g_photoDelay );
                 if ( -1 != len )
@@ -1689,7 +1700,7 @@ LRESULT CALLBACK WindowProc( HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam 
                     if ( 0 != pslash )
                     {
                         static WCHAR awcPath[ MAX_PATH ];
-                        int wchars = 1 + pslash - pfile;
+                        int wchars = 1 + (int) ( pslash - pfile );
                         wcsncpy( awcPath, pfile, wchars );
                         awcPath[ wchars ] = 0;
                         tracer.Trace( "exploring using '%ws'\n", awcPath );
@@ -1754,6 +1765,7 @@ LRESULT CALLBACK WindowProc( HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam 
             CheckMenuRadioItem( GetSubMenu( hMenu, 0 ), ID_PV_SLIDESHOW_ASAP, ID_PV_SLIDESHOW_600, ID_PV_SLIDESHOW_ASAP + delayIndex, MF_BYCOMMAND );
             CheckMenuRadioItem( GetSubMenu( hMenu, 0 ), ID_PV_RAW_ALWAYS, ID_PV_RAW_NEVER, ID_PV_RAW_ALWAYS + (int) g_ProcessRAW, MF_BYCOMMAND );
             CheckMenuRadioItem( GetSubMenu( hMenu, 0 ), ID_PV_SORT_CAPTURE, ID_PV_SORT_PATH, ID_PV_SORT_CAPTURE + (int) g_SortImagesBy, MF_BYCOMMAND );
+            CheckMenuItem( GetSubMenu( hMenu, 0 ), ID_PV_SORT_ASCENDING, g_SortImagesAscending ? MF_CHECKED : 0 );
 
             TrackPopupMenu( GetSubMenu( hMenu, 0 ), TPM_RIGHTBUTTON, pt.x, pt.y, 0, hwnd, NULL );
             break;
@@ -1829,8 +1841,8 @@ LRESULT CALLBACK WindowProc( HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam 
                 DeleteCommand( hwnd );
             else if ( 0x54 == wParam ) // T
                 RatingCommand( hwnd );
-            else if ( wParam >= '0' && wParam <= '5' )
-                RatingCommand( hwnd, wParam );
+            else if ( wParam >= (WPARAM) '0' && wParam <= (WPARAM) '5' )
+                RatingCommand( hwnd, (char) wParam );
             else if ( VK_DELETE == wParam )
                 DeleteCommand( hwnd );
             else if ( VK_F1 == wParam )
@@ -1974,7 +1986,7 @@ int WINAPI wWinMain( _In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,
         LocalFree( argv );
     }
 
-    tracer.Enable( enableTracer, (char *) NULL, emptyTracerFile );
+    tracer.Enable( enableTracer, L"pv.log", emptyTracerFile );
 
     if ( 0 == awcInput[ 0 ] )
         wcscpy_s( awcInput, _countof( awcInput ), L".\\" );
@@ -2011,7 +2023,7 @@ int WINAPI wWinMain( _In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,
     GetWindowRect( GetDesktopWindow(), &rectDesk );
     int fontHeight = rectDesk.bottom / 80;
  
-    WINDOWPLACEMENT wp;
+    WINDOWPLACEMENT wp = {0};
     wp.length = sizeof wp;
 
     BOOL placementFound = CDJLRegistry::readStringFromRegistry( HKEY_CURRENT_USER, REGISTRY_APP_NAME, REGISTRY_WINDOW_POSITION, awcPos, sizeof( awcPos ) );
@@ -2132,7 +2144,7 @@ int WINAPI wWinMain( _In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,
     if ( startSlideshow)
         SendMessage( hwnd, WM_CHAR, 's', 0 );
 
-    SetProcessWorkingSetSize( GetCurrentProcess(), ~0, ~0 );
+    SetProcessWorkingSetSize( GetCurrentProcess(), (SIZE_T) ~0, (SIZE_T) ~0 );
 
     MSG msg = { };
     while ( GetMessage( &msg, NULL, 0, 0 ) )

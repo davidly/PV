@@ -29,6 +29,8 @@
 #include "djl_strm.hxx"
 #include "djl_crop.hxx"
 
+#pragma warning( disable: 4189 ) // many places parse data that's unused in order to get to later data
+
 using namespace std;
 
 /*
@@ -177,7 +179,7 @@ private:
     char g_acSerialNumber[ 100 ];
     bool g_holdsAdobeEditsInXMP;
     __int64 g_RatingInXMP_Offset = 0; // offset of 1 ascii character in the range of 0-5.
-    int g_RatingInXMP = 0;
+    char g_RatingInXMP = 0;
     
     WORD FixEndianWORD( WORD w, bool littleEndian )
     {
@@ -539,7 +541,6 @@ private:
     
     void EnumerateOlympusCameraSettingsIFD( int depth, __int64 IFDOffset, __int64 headerBase, bool littleEndian )
     {
-        __int64 originalIFDOffset = IFDOffset;
         bool previewIsValid = false;
         vector<IFDHeader> aHeaders( MaxIFDHeaders );
     
@@ -587,7 +588,7 @@ private:
     
         // In Fujifilm files, the base is not relative to the prior base; it's relative to the IFD start.
     
-        DWORD tagHeaderBase = IFDOffset - 12;
+        DWORD tagHeaderBase = (DWORD) ( IFDOffset - 12 );
     
         while ( 0 != IFDOffset ) 
         {
@@ -607,7 +608,7 @@ private:
     
                 if ( 16 == head.id )
                 {
-                    ULONG stringOffset = ( head.count <= 4 ) ? ( IFDOffset - 4 ) : head.offset;
+                    ULONG stringOffset = ( head.count <= 4 ) ? ( (ULONG) IFDOffset - 4 ) : head.offset;
                     GetString( stringOffset + tagHeaderBase + headerBase, g_acSerialNumber, _countof( g_acSerialNumber ), head.count );
                     //tracer.Trace( "fujifilm makernote (alternate) Serial #: %s\n", g_acSerialNumber );
                 }
@@ -617,8 +618,8 @@ private:
                     // If rating is set in-camera (on a X-S10), the xmp in the embedded JPG has the rating set appropriately,
                     // but this field does not exist.
 
-                    size_t ratingOffset = head.offset + tagHeaderBase + headerBase;
-                    DWORD ratingTest = GetDWORD( ratingOffset, false );
+                    //size_t ratingOffset = head.offset + tagHeaderBase + headerBase;
+                    //DWORD ratingTest = GetDWORD( ratingOffset, false );
                     //tracer.Trace( "fujifilm rating value %d and offset: %zd, rating at that offset %d\n", head.offset, ratingOffset, ratingTest );
                 }
             }
@@ -668,19 +669,19 @@ private:
                 {
                     // treat this as if it's a string even though it's a type 7 
 
-                    ULONG stringOffset = ( head.count <= 4 ) ? ( IFDOffset - 4 ) : head.offset;
+                    ULONG stringOffset = ( head.count <= 4 ) ? ( (ULONG) IFDOffset - 4 ) : head.offset;
                     GetString( stringOffset + headerBase, g_acSerialNumber, _countof( g_acSerialNumber ), head.count );
                     DetectGarbage( g_acSerialNumber );
                 }
                 else if ( 81 == head.id && 2 == head.type )
                 {
-                    ULONG stringOffset = ( head.count <= 4 ) ? ( IFDOffset - 4 ) : head.offset;
+                    ULONG stringOffset = ( head.count <= 4 ) ? ( (ULONG) IFDOffset - 4 ) : head.offset;
                     GetString( stringOffset + headerBase, g_acLensModel, _countof( g_acLensModel ), head.count );
                     DetectGarbage( g_acLensModel );
                 }
                 else if ( 82 == head.id && 2 == head.type )
                 {
-                    ULONG stringOffset = ( head.count <= 4 ) ? ( IFDOffset - 4 ) : head.offset;
+                    ULONG stringOffset = ( head.count <= 4 ) ? ( (ULONG) IFDOffset - 4 ) : head.offset;
                     GetString( stringOffset + headerBase, g_acLensSerialNumber, _countof( g_acLensSerialNumber ), head.count );
                     DetectGarbage( g_acLensSerialNumber );
                 }
@@ -889,6 +890,7 @@ private:
                     SensorData sd;
                     GetBytes( head.offset + headerBase, &sd, sizeof sd );
 
+/*
                     short sensorWidth = FixEndianWORD( sd.width, littleEndian );
                     short sensorHeight = FixEndianWORD( sd.height, littleEndian );
     
@@ -896,12 +898,13 @@ private:
                     short topBorder = FixEndianWORD( sd.tborder, littleEndian );
                     short rightBorder = FixEndianWORD( sd.rborder, littleEndian );
                     short bottomBorder = FixEndianWORD( sd.bborder, littleEndian );
+*/
                 }
                 else if ( 553 == head.id && isRicoh )
                 {
                     if ( 2 == head.type )
                     {
-                        ULONG stringOffset = ( head.count <= 4 ) ? ( IFDOffset - 4 ) : head.offset;
+                        ULONG stringOffset = ( head.count <= 4 ) ? ( (ULONG) IFDOffset - 4 ) : head.offset;
     
                         // Ricoh assumes the base is originalIFDOffset
 
@@ -932,7 +935,6 @@ private:
         DWORD YResolutionNum = 0;
         DWORD YResolutionDen = 0;
         DWORD sensorSizeUnit = 0; // 2==inch, 3==centimeter
-        double focalLength = 0.0;
         DWORD pixelWidth = 0;
         DWORD pixelHeight = 0;
         vector<IFDHeader> aHeaders( MaxIFDHeaders );
@@ -1410,7 +1412,6 @@ private:
     
         __int64 offset = 0;
         DWORD box = 0;
-        int indent = depth * 2;
     
         do
         {
@@ -1618,7 +1619,7 @@ private:
                             extentLength = ( high << 32 ) | low;
                         }
     
-                        if ( itemID == g_Heif_Exif_ItemID )
+                        if ( itemID == (int) g_Heif_Exif_ItemID )
                         {
                             g_Heif_Exif_Offset = extentOffset;
                             g_Heif_Exif_Length = extentLength;
@@ -1703,7 +1704,7 @@ private:
                     ULONGLONG xmpLen = boxLen - ( offset - boxOffset );
                     unique_ptr<char> bytes( new char[ xmpLen + 1 ] );
                     bytes.get()[ xmpLen ] = 0; // ensure it'll be null-terminated
-                    hs.GetBytes( offset, bytes.get(), xmpLen );
+                    hs.GetBytes( offset, bytes.get(), (ULONG) xmpLen );
                     EnumerateXMPData( bytes.get(), offset );
                 }
             }
@@ -2102,7 +2103,7 @@ private:
                     unique_ptr<char> bytes( new char[ data_length + 1 ] );
                     GetBytes( (__int64) offset + 4, bytes.get(), data_length );
                     bytes.get()[ data_length ] = 0;
-                    int headerlen = strlen( bytes.get() );
+                    size_t headerlen = strlen( bytes.get() );
     
                     EnumerateXMPData( bytes.get() + headerlen + 1, ( offset + 4 + headerlen + 1 ) );
                 }
@@ -2355,7 +2356,7 @@ private:
                 // byte array:                     the image
                 // 
 
-                int o = frameOffset + frameHeaderSize;
+                int o = (int) ( frameOffset + frameHeaderSize );
                 int oFrameData = o;
 
                 // Every MP3 in my collection had far less than 100 bytes of data prior to the image itself.
@@ -2484,7 +2485,7 @@ private:
 
                 o = oFrameData + datao;
 
-                if ( o < ( oFrameData + frameHeader.size ) )
+                if ( o < (int) ( oFrameData + frameHeader.size ) )
                 {
                     int imageSize = frameHeader.size - ( o - oFrameData );
                     //tracer.Trace( "  image size:        %d and offset %d\n", imageSize, o );
@@ -3504,7 +3505,7 @@ public:
         return g_holdsAdobeEditsInXMP;
     } //HoldsAdobeEditsInXMP
 
-    bool GetRating( const WCHAR * pwcPath, int & rating )
+    bool GetRating( const WCHAR * pwcPath, char & rating )
     {
         UpdateCache( pwcPath );
 
@@ -3530,7 +3531,7 @@ public:
             return false;
         }
 
-        int newRating = 0;
+        char newRating = 0;
 
         if ( ( g_RatingInXMP >= 0 ) && ( g_RatingInXMP <= 4 ) )
             newRating = 1 + g_RatingInXMP;
@@ -3571,7 +3572,7 @@ public:
         return ok;
     } //ToggleRating
 
-    bool SetRating( const WCHAR * pwcPath, int rating )
+    bool SetRating( const WCHAR * pwcPath, char rating )
     {
         // If the file can hold a rating, set it to the value as a character
 
@@ -3663,7 +3664,7 @@ public:
         }
 
         // 1 --> 6 --> 3 --> 8 --> 1 ...
-        WORD o = g_Orientation_Value;
+        WORD o = (WORD) g_Orientation_Value;
 
         if ( rotateRight )
         {

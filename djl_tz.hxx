@@ -55,7 +55,7 @@ private:
     BOOL DeleteFileWithRetries( WCHAR const * path )
     {
         //printf( "deleting %ws\n", path );
-        BOOL ok;
+        BOOL ok = false;
 
         for ( int attempt = 0; attempt < 20; attempt++ )
         {
@@ -65,7 +65,7 @@ private:
 
             DWORD err = GetLastError();
 
-            if ( ERROR_FILE_NOT_FOUND )
+            if ( ERROR_FILE_NOT_FOUND == err )
             {
                 ok = true;
                 break;
@@ -251,6 +251,7 @@ private:
     
 public:
 
+#pragma warning( disable: 4702 ) // the compiler is confused by code below with count
     HRESULT GetTiffCompression( ComPtr<IWICImagingFactory> & wicFactory, WCHAR const * pwcPath, DWORD * pCompression )
     {
         *pCompression = 0;
