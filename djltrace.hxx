@@ -20,8 +20,15 @@
 #include <cstring>
 #include <djl_os.hxx>
 
-#if !defined(_WIN32) && !defined(WATCOM)
+#if defined( __GNUC__ ) && !defined( __APPLE__) && !defined( __clang__ )
+#pragma GCC diagnostic ignored "-Wformat="
+#endif
 
+#ifdef _WIN32
+#include <process.h>
+#endif
+
+#if !defined(_WIN32) && !defined(WATCOMDOS) && !defined(WATCOMLINUX)
     #include <sys/unistd.h>
     #ifdef __APPLE__
         #include <unistd.h>
@@ -34,7 +41,7 @@ class CDJLTrace
 {
     private:
         FILE * fp;
-#ifndef WATCOM
+#if !defined( WATCOMDOS ) && !defined( WATCOMLINUX ) && !defined( OLDGCC ) && !defined( __mc68000__ )
         std::mutex mtx;
 #endif
         bool quiet; // no pid
@@ -62,9 +69,9 @@ class CDJLTrace
 
         void ShowBinaryData( uint8_t * pData, uint32_t length, uint32_t indent, bool trace )
         {
-            int64_t offset = 0;
-            int64_t beyond = length;
-            const int64_t bytesPerRow = 32;
+            int32_t offset = 0;
+            int32_t beyond = length;
+            const int32_t bytesPerRow = 32;
             uint8_t buf[ bytesPerRow ];
             char acLine[ 200 ];
         
@@ -79,13 +86,15 @@ class CDJLTrace
                 *pline++ = ' ';
                 *pline++ = ' ';
 
-                int64_t end_of_row = offset + bytesPerRow;
-                int64_t cap = ( end_of_row > beyond ) ? beyond : end_of_row;
-                int64_t toread = ( ( offset + bytesPerRow ) > beyond ) ? ( length % bytesPerRow ) : bytesPerRow;
+                int32_t end_of_row = offset + bytesPerRow;
+                int32_t cap = ( end_of_row > beyond ) ? beyond : end_of_row;
+                int32_t toread = ( ( offset + bytesPerRow ) > beyond ) ? ( length % bytesPerRow ) : bytesPerRow;
         
                 memcpy( buf, pData + offset, toread );
+
+                uint32_t extraSpace = 2;
         
-                for ( int64_t o = offset; o < cap; o++ )
+                for ( int32_t o = offset; o < cap; o++ )
                 {
                     pline = appendHexByte( pline, buf[ o - offset ] );
                     *pline++ = ' ';
@@ -93,15 +102,16 @@ class CDJLTrace
                     {
                         *pline++ = ':';
                         *pline++ = ' ';
+                        extraSpace = 0;
                     }
                 }
         
-                uint64_t spaceNeeded = ( bytesPerRow - ( cap - offset ) ) * 3;
+                uint32_t spaceNeeded = extraSpace + ( ( bytesPerRow - ( cap - offset ) ) * 3 );
         
-                for ( uint64_t sp = 0; sp < ( 1 + spaceNeeded ); sp++ )
+                for ( uint32_t sp = 0; sp < ( 1 + spaceNeeded ); sp++ )
                     *pline++ = ' ';
         
-                for ( int64_t o = offset; o < cap; o++ )
+                for ( int32_t o = offset; o < cap; o++ )
                 {
                     char ch = buf[ o - offset ];
         
@@ -166,7 +176,7 @@ class CDJLTrace
                 }
                 else
                 {
-#ifdef WATCOM // workaround for WATCOM, which doesn't delete the file with "w+t" in spite of its documentation claiming otherwise
+#if defined( WATCOMDOS ) || defined( WATCOMLINUX ) // workaround for WATCOM, which doesn't delete the file with "w+t" in spite of its documentation claiming otherwise
                     if ( !strcmp( mode, "w+t" ) )
                         remove( pcLogFile );
 #endif
@@ -205,7 +215,7 @@ class CDJLTrace
         {
             if ( NULL != fp )
             {
-#ifndef WATCOM
+#if !defined( WATCOMDOS ) && !defined( WATCOMLINUX ) && !defined( OLDGCC ) && !defined( __mc68000__ )
                 lock_guard<mutex> lock( mtx );
 #endif
 
@@ -225,13 +235,23 @@ class CDJLTrace
             }
         } //Trace
 
+        void TraceVA( const char * format, va_list args )
+        {
+            if ( NULL != fp )
+            {
+                vfprintf( fp, format, args );
+                if ( flush )
+                    fflush( fp );
+            }
+        } //TraceVA
+
         // Don't prepend the PID to the trace
 
         void TraceQuiet( const char * format, ... )
         {
             if ( NULL != fp )
             {
-#ifndef WATCOM
+#if !defined( WATCOMDOS ) && !defined( WATCOMLINUX ) && !defined( OLDGCC ) && !defined( __mc68000__ )
                 lock_guard<mutex> lock( mtx );
 #endif
                 va_list args;
@@ -243,12 +263,25 @@ class CDJLTrace
             }
         } //TraceQuiet
 
+        void TraceIt( const char * format, ... )
+        {
+#if !defined( WATCOMDOS ) && !defined( WATCOMLINUX ) && !defined( OLDGCC ) && !defined( __mc68000__ )
+            lock_guard<mutex> lock( mtx );
+#endif
+            va_list args;
+            va_start( args, format );
+            vfprintf( fp, format, args );
+            va_end( args );
+            if ( flush )
+                fflush( fp );
+        } //TraceIt
+
         void TraceDebug( bool condition, const char * format, ... )
         {
             #ifdef DEBUG
             if ( NULL != fp && condition )
             {
-#ifndef WATCOM
+#if !defined( WATCOMDOS ) && !defined( WATCOMLINUX ) && !defined( OLDGCC ) && !defined( __mc68000__ )
                 lock_guard<mutex> lock( mtx );
 #endif
 
@@ -267,7 +300,7 @@ class CDJLTrace
                     fflush( fp );
             }
             #else
-#if !defined( WATCOM ) && !defined( __APPLE__ )
+#if !defined( WATCOMDOS ) && !defined( WATCOMLINUX ) && !defined( __APPLE__ ) && !defined( __clang__ ) && !defined (OLDGCC)
             condition; // unused
             format; // unused
 #endif
@@ -284,7 +317,42 @@ class CDJLTrace
         {
             ShowBinaryData( pData, length, indent, false );
         } //PrintBinaryData
+
+        static char * RenderNumberWithCommas( int64_t n, char * pc )
+        {
+            char actmp[ 32 ];
+            int64_t orig = n;
+
+            if ( 0 == n )
+            {
+                strcpy( pc, "0" );
+                return pc;
+            }
+            else if ( n < 0 )
+                n = -n;
+
+            pc[ 0 ] = 0;
+
+            while ( 0 != n )
+            {
+                strcpy( actmp, pc );
+                if ( n >= 1000 )
+                    snprintf( pc, 5, ",%03lld", n % 1000 );
+                else
+                    snprintf( pc, 4, "%lld", n );
+                strcat( pc, actmp );
+                n /= 1000;
+            }
+
+            if ( orig < 0 )
+            {
+                strcpy( actmp, pc );
+                strcpy( pc, "-" );
+                strcat( pc, actmp );
+            }
+
+            return pc;
+        } //RenderNumberWithCommas
 }; //CDJLTrace
 
 extern CDJLTrace tracer;
-

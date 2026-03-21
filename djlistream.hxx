@@ -163,6 +163,7 @@ class CIStream : public IStream
             return hr;
         }
 
+#pragma warning( disable: 4100 ) // unreference formal parameters
         HRESULT STDMETHODCALLTYPE Write( const void *pv, ULONG cb, ULONG *pcbWritten ) { return S_OK; }
         HRESULT STDMETHODCALLTYPE Clone( IStream **ppstm ) { tracer.Trace( "clone called\n" ); return S_OK; }
         HRESULT STDMETHODCALLTYPE Commit( DWORD flags ) { return S_OK; }
@@ -199,6 +200,7 @@ class CIStream : public IStream
             return S_OK;
         }
         HRESULT STDMETHODCALLTYPE UnlockRegion( ULARGE_INTEGER libOffset, ULARGE_INTEGER cb, DWORD dwLockType ) { return S_OK; }
+#pragma warning( default: 4100 ) // unreference formal parameters
 };
 
 

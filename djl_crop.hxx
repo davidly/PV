@@ -12,7 +12,6 @@
 #include <float.h>
 #include <eh.h>
 #include <math.h>
-#include <assert.h>
 
 #include <memory>
 #include <vector>

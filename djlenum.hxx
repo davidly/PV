@@ -5,7 +5,6 @@
 //
 
 #include <windows.h>
-#include <windowsx.h>
 
 #include <djlsav.hxx>
 #include <djl_pa.hxx>

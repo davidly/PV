@@ -1,5 +1,5 @@
 /*
-    These are some utilities and abstractions for building on Windows and Linux
+    These are some utilities and abstractions for building on Windows, Linux, and macOS
 */
 
 #pragma once
@@ -38,7 +38,7 @@
         SetProcessAffinityMask( (HANDLE) -1, processAffinityMask );
     }
 
-#elif defined( WATCOM )
+#elif defined( WATCOMDOS ) || defined( WATCOMLINUX )
 
     #include <io.h>
     #define MAX_PATH 255
@@ -67,9 +67,14 @@
 
 #else // Linux, MacOS, etc.
 
-    #ifndef OLDGCC
+    #if !defined( OLDGCC ) && !defined( __mc68000__ )
         #include <termios.h>
     #endif
+
+#ifdef __mc68000__
+#define truncl trunc
+extern "C" int nanosleep( const struct timespec * duration, struct timespec * rem );
+#endif
 
     #include <thread>
     #include <sched.h>
@@ -83,7 +88,7 @@
 
     inline void set_process_affinity( uint64_t processAffinityMask )
     {
-#if !defined(__APPLE__) && !defined( OLDGCC )
+#if !defined(__APPLE__) && !defined( OLDGCC ) && !defined( __mc68000__ )
         cpu_set_t mask;
         CPU_ZERO( &mask );
 
@@ -99,7 +104,7 @@
 #endif
     } //set_process_affinity
 
-    template < typename T, size_t N > size_t _countof( T ( & arr )[ N ] ) { return std::extent< T[ N ] >::value; }    
+    template < typename T, size_t N > size_t _countof( T ( & arr )[ N ] ) { return std::extent< T[ N ] >::value; }
     #define _stricmp strcasecmp
     #define MAX_PATH 1024
 
@@ -130,7 +135,7 @@
         long sec = (long) ( total_ns / 1000000000 );
         struct timespec ts = { sec, ns };
 
-        #ifndef OLDGCC
+        #if !defined( OLDGCC )
             nanosleep( &ts, 0 );
         #endif
     } //sleep_ms
@@ -179,20 +184,28 @@ inline const char * target_platform()
 {
     #if defined( __riscv )        // g++ on linux
         return "riscv";
-    #elif defined( __amd64 )      // g++ on linux
+    #elif defined( __amd64__ )    // g++ on linux
         return "amd64";
+    #elif defined( __i386__ )     // g++ on linux
+        return "i386";
     #elif defined( __aarch64__ )  // g++ on linux
         return "arm64";
     #elif defined( _M_AMD64 )     // msft on Windows
         return "amd64";
     #elif defined( _M_ARM64 )     // msft on Windows
         return "arm64";
-    #elif defined( WATCOM )       // WATCOM for 8086
+    #elif defined( WATCOMDOS )    // WATCOM for 8086
         return "8086";
+    #elif defined( WATCOMLINUX )  // WATCOM for i386
+        return "i386";
     #elif defined( _M_IX86 )      // msft on Windows 32-bit
         return "x86";
     #elif defined( __ARM_32BIT_STATE ) // ARM32 on Raspberry PI (and more)
         return "arm32";
+    #elif defined( __mc68000__ )
+        return "m68000";
+    #elif defined( sparc )
+        return "sparc";
     #else
         return "(other)";
     #endif
@@ -214,12 +227,14 @@ inline const char * compiler_used()
     #if defined( __GNUC__ )
         return "g++";
     #elif defined( _MSC_VER )
-        sprintf( acver, "msft C++ ver %u", _MSC_VER );
+        snprintf( acver, sizeof( acver ), "msft C++ ver %u", _MSC_VER );
         return acver;
     #elif defined( __clang__ )
         return "clang";
-    #elif defined( WATCOM )
-        return "watcom";
+    #elif defined( WATCOMDOS )
+        return "watcom 8086";
+    #elif defined( WATCOMLINUX )
+        return "watcom i386";
     #else
         return "unknown";
     #endif
@@ -233,7 +248,11 @@ inline const char * build_platform()
         return "linux";
     #elif defined( _WIN32 )
         return "windows";
-    #elif defined( WATCOM )
+    #elif defined( __LINUX__ ) // watcom does this
+        return "linux";
+    #elif defined( __UNIX__ ) // watcom does this
+        return "unix";
+    #elif defined( __WINDOWS__ ) || defined( __NT__ ) // watcom does this
         return "windows";
     #else
         return "unknown";
@@ -243,16 +262,16 @@ inline const char * build_platform()
 inline const char * build_string()
 {
     static char bs[ 320 ];
-    sprintf( bs, "Built for %s %s on %c%c %c%c%c %s %s by %s on %s\n",
+    snprintf( bs, sizeof( bs ), "Built for %s %s on %c%c %c%c%c %s %s by %s on %s\n",
                  target_platform(), build_type(), __DATE__[4], __DATE__[5],
-                 __DATE__[0], __DATE__[1], __DATE__[2], &__DATE__[9], __TIME__, compiler_used(), build_platform() );
+                 __DATE__[0], __DATE__[1], __DATE__[2], &__DATE__[7], __TIME__, compiler_used(), build_platform() );
     return bs;
 } //build_string
 
 #if defined( __GNUC__ ) || defined( __clang__ )
     #define assume_false return( 0 )   // clearly terrible, but this code will never execute. ever.
     #define assume_false_return return // clearly terrible, but this code will never execute. ever.
-#elif defined( WATCOM )
+#elif defined( WATCOMDOS ) || defined( WATCOMLINUX )
     #define assume_false return( 0 )   // clearly terrible, but this code will never execute. ever.
     #define __assume( x )
 #else
@@ -314,4 +333,120 @@ class CFile
             }
         }
 };
+
+inline char printable( uint8_t x )
+{
+    if ( x < ' ' || x >= 127 )
+        return ' ';
+    return x;
+} //printable
+
+#if ( ( defined( __clang__ ) || defined( __GNUC__ ) ) && !defined( OLDGCC ) )
+
+    inline uint64_t flip_endian64( uint64_t x ) { return __builtin_bswap64( x ); }
+    inline uint32_t flip_endian32( uint32_t x ) { return __builtin_bswap32( x ); }
+    inline uint16_t flip_endian16( uint16_t x ) { return __builtin_bswap16( x ); }
+
+#elif defined( _MSC_VER )
+
+    inline uint64_t flip_endian64( uint64_t x ) { return _byteswap_uint64( x ); }
+    inline uint32_t flip_endian32( uint32_t x ) { return _byteswap_ulong( x ); }
+    inline uint16_t flip_endian16( uint16_t x ) { return _byteswap_ushort( x ); }
+
+#else
+
+    inline uint64_t flip_endian64( uint64_t x )
+    {
+        return ( ( x & 0xffull ) << 56 ) | ( ( x & 0xff00ull ) << 40 ) | ( ( x & 0xff0000ull ) << 24 ) | ( ( x & 0xff000000ull ) << 8 ) |
+               ( ( x & 0xff00000000ull ) >> 8 ) | ( ( x & 0xff0000000000ull ) >> 24 ) | ( ( x & 0xff000000000000ull ) >> 40 ) | ( x >> 56 );
+    } //flip_endian64
+
+    inline uint32_t flip_endian32( uint32_t x )
+    {
+        return ( ( x & 0xff ) << 24 ) | ( ( x & 0xff00) << 8 ) | ( ( x & 0xff0000) >> 8 ) | ( x >> 24 );
+    } //flip_endian32
+
+    inline uint16_t flip_endian16( uint16_t x )
+    {
+        return ( ( x >> 8 ) | ( ( x & 0xff ) << 8 ) );
+    } //flip_endian16
+
+#endif
+
+#ifdef sparc // If using buildroot and wide strings weren't included...
+    inline size_t wcstombs( char * dst, const wchar_t * src, size_t len ) // simplistic ascii-only version
+    {
+        if ( 0 == dst || 0 == src )
+            return -1;
+
+        size_t i = 0;
+        while ( ( i < ( len - 1 ) ) && src[i] )
+        {
+            dst[ i ] = (char) src[ i ];
+            i++;
+        }
+
+        dst[ i ] = 0;
+        return i;
+    } //wcstombs
+
+    inline size_t wcslen(const wchar_t *str)
+    {
+        size_t len = 0;
+        while ( *str )
+        {
+            len++;
+            str++;
+        }
+        return len;
+    } //wcslen
+#endif
+
+inline uint8_t bit_count( uint64_t x )
+{
+    // use popcnt if possible. It's not available on the Q9650 and other older Intel CPUs. use fallback code below instead if needed.
+
+    #if defined( __GNUC__ ) || defined( __clang__ )
+        return (uint8_t) __builtin_popcountll( x );
+    #elif defined( _MSC_VER )
+        return (uint8_t) __popcnt64( x );
+    #elif defined( __aarch64__ )
+        return (uint8_t) std::bitset<64>( x ).count();
+    #else
+        uint8_t count = 0;
+        while ( 0 != x )
+        {
+            x &= ( x - 1 ); // Deletes the rightmost 1-bit
+            count++;
+        }
+        return count;
+    #endif
+} //bit_count64
+
+inline uint8_t bit_count8( uint8_t x )
+{
+    // use popcnt if possible. It's not available on the Q9650 and other older Intel CPUs. use fallback code below instead if needed.
+
+    #if defined( __GNUC__ ) || defined( __clang__ )
+        return (uint8_t) __builtin_popcount( x );
+    #elif defined( _MSC_VER )
+        return (uint8_t) __popcnt16( x );
+    #elif defined( __aarch64__ )
+        return (uint8_t) std::bitset<8>( x ).count();
+    #else
+        uint8_t count = 0;
+        while ( 0 != x )
+        {
+            x &= ( x - 1 ); // Deletes the rightmost 1-bit
+            count++;
+        }
+        return count;
+    #endif
+} //bit_count8
+
+inline bool is_parity_even8( uint8_t x )
+{
+    return ( ! ( bit_count8( x ) & 1 ) );
+} //is_parity_even8
+
 

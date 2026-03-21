@@ -160,6 +160,7 @@ const WCHAR * imageExtensions[] =
     L"rw2",
     L"tif",
     L"tiff",
+    L"webp",
 };
 
 // images that don't likely have an embedded JPG/PNG/etc. useful for display
@@ -178,6 +179,7 @@ const WCHAR * nonEmbedExtensions[] =
     L"png",
     L"tif",
     L"tiff",
+    L"webp",
 };
 
 // Images that quite likely (though not for sure) have good quality embedded JPGs
@@ -1054,6 +1056,7 @@ void CopyCommand( HWND hwnd )
     }
 } //CopyCommand
 
+#pragma warning( disable: 4100 ) // unreference formal parameters
 extern "C" INT_PTR WINAPI HelpDialogProc( HWND hdlg, UINT message, WPARAM wParam, LPARAM lParam )
 {
     static const WCHAR * helpText = L"usage:\n"
