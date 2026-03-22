@@ -10,7 +10,7 @@ under Actions, in a zip file. Otherwise, build it yourself.
 
 PV uses WIC for opening images and D2D for display. It was tested with files
 including 3fr, arw, bmp, cr2, cr3, cur, dng, flac, gif, heic, hif, ico, jfif/jpeg/jpg,
-mp3, nef, orf, png, raf, rw2, tif/tiff.
+mp3, nef, orf, png, raf, rw2, tif/tiff, and webp.
 
 ![PV Screenshot](pv3.png)
 
