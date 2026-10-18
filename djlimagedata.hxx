@@ -2684,7 +2684,7 @@ private:
 
     void EnumerateImageData( HANDLE hFile, const WCHAR * pwc )
     {
-        g_pStream = new CStream( hFile );
+        g_pStream = new CStream( hFile, true );
         unique_ptr<CStream> stream( g_pStream );
     
         if ( !g_pStream->Ok() )
@@ -2763,7 +2763,7 @@ private:
 
             if ( 0 != g_Embedded_Image_Offset && 0 != g_Embedded_Image_Length )
             {
-                CStream * embeddedImage = new CStream( pwc, g_Embedded_Image_Offset, g_Embedded_Image_Length );
+                CStream * embeddedImage = new CStream( pwc, g_Embedded_Image_Offset, g_Embedded_Image_Length, true );
     
                 embeddedImage->Read( &header, sizeof header );
                 stream.reset( embeddedImage );
@@ -2782,7 +2782,7 @@ private:
     
             if ( 0 != g_Embedded_Image_Offset && 0 != g_Embedded_Image_Length )
             {
-                CStream * embeddedImage = new CStream( pwc, g_Embedded_Image_Offset, g_Embedded_Image_Length );
+                CStream * embeddedImage = new CStream( pwc, g_Embedded_Image_Offset, g_Embedded_Image_Length, true );
     
                 embeddedImage->Read( &header, sizeof header );
                 stream.reset( embeddedImage );
@@ -2961,7 +2961,7 @@ private:
             // Panasonic raw files sometimes have embedded JPGs with metadata not in the actual RW2 file.
             // Specifically, Serial Number, Lens Model, and Lens Serial Number can only be retrieved in this way.
     
-            g_pStream = new CStream( pwc, g_Embedded_Image_Offset, g_Embedded_Image_Length );
+            g_pStream = new CStream( pwc, g_Embedded_Image_Offset, g_Embedded_Image_Length, true );
             stream.reset( g_pStream );
     
             if ( !g_pStream->Ok() )
@@ -3033,7 +3033,7 @@ private:
             }
             else
             {
-                CStream * embeddedImage = new CStream( pwc, g_Embedded_Image_Offset, g_Embedded_Image_Length );
+                CStream * embeddedImage = new CStream( pwc, g_Embedded_Image_Offset, g_Embedded_Image_Length, true );
                 unsigned long long head;
                 embeddedImage->Read( &head, sizeof head );
                 stream.reset( embeddedImage );

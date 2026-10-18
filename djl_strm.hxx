@@ -14,6 +14,11 @@ class CStream
         bool handleOwned;
         bool seekCalled;
         bool forWrite;
+        // Opt in only for metadata readers. This buffer is local to this stream.
+        bool bufferReads = false;
+        BYTE readBuffer[4096];
+        __int64 readBufferOffset = -1;
+        DWORD readBufferLength = 0;
 
     public:
         CStream()
@@ -51,7 +56,7 @@ class CStream
             }
         } //CStream
 
-        CStream( HANDLE h )
+        CStream( HANDLE h, bool bufferedReads = false )
         {
             embedOffset = 0;
             length = 0;
@@ -59,6 +64,7 @@ class CStream
             seekCalled = true; // don't trust where this handle has been
             handleOwned = false;
             hFile = h;
+            bufferReads = bufferedReads;
             forWrite = false;
 
             LARGE_INTEGER liSize;
@@ -67,7 +73,7 @@ class CStream
                 length = liSize.QuadPart;
         } //CStream
 
-        CStream( WCHAR const * pwcFile, __int64 embeddedOffset, __int64 embeddedLength )
+        CStream( WCHAR const * pwcFile, __int64 embeddedOffset, __int64 embeddedLength, bool bufferedReads = false )
         {
             if ( embeddedOffset < 0 || embeddedLength < 0 )
             {
@@ -76,6 +82,7 @@ class CStream
             }
 
             embedOffset = embeddedOffset;
+            bufferReads = bufferedReads;
             length = embeddedLength;
             offset = 0;
             seekCalled = true; // need to get to virtual 0 on first read
@@ -125,34 +132,55 @@ class CStream
 
         ULONG Read( void *pv, ULONG cb )
         {
-            if ( 0 == length )
+            if ( offset >= length || 0 == cb )
                 return 0;
+
+            cb = (ULONG) __min( (__int64) cb, length - offset );
+
+            if ( bufferReads && cb <= sizeof readBuffer )
+            {
+                if ( readBufferOffset < 0 || offset < readBufferOffset ||
+                     offset + cb > readBufferOffset + readBufferLength )
+                {
+                    // Read-ahead moves the handle past the logical stream position.
+                    // Keep it dirty even on failure so direct reads/writes always seek.
+                    seekCalled = true;
+                    readBufferOffset = -1;
+                    readBufferLength = 0;
+                    LARGE_INTEGER li;
+                    li.QuadPart = offset + embedOffset;
+                    if ( !SetFilePointerEx( hFile, li, NULL, FILE_BEGIN ) )
+                        return 0;
+
+                    DWORD wanted = (DWORD) __min( (__int64) sizeof readBuffer, length - offset );
+                    if ( !ReadFile( hFile, readBuffer, wanted, &readBufferLength, NULL ) )
+                        return 0;
+
+                    readBufferOffset = offset;
+                }
+
+                ULONG copied = (ULONG) __min( (__int64) cb, readBufferOffset + readBufferLength - offset );
+                memcpy( pv, readBuffer + (size_t) ( offset - readBufferOffset ), copied );
+                offset += copied;
+                seekCalled = true;
+                return copied;
+            }
 
             if ( seekCalled )
             {
                 LARGE_INTEGER li;
                 li.QuadPart = offset + embedOffset;
-                SetFilePointerEx( hFile, li, NULL, FILE_BEGIN );
+                if ( !SetFilePointerEx( hFile, li, NULL, FILE_BEGIN ) )
+                    return 0;
                 seekCalled = false;
             }
 
-            if ( ( offset + cb ) > length )
-            {
-                if ( length > offset )
-                    cb = __min( cb, (ULONG) ( length - offset ) );
-                else
-                    cb = 0;
-            }
-
             DWORD dwRead = 0;
-            BOOL ok = ReadFile( hFile, pv, cb, &dwRead, NULL );
+            if ( !ReadFile( hFile, pv, cb, &dwRead, NULL ) )
+                return 0;
 
-            if ( ok )
-                offset += cb;
-            else
-                cb = 0;
-
-            return cb;
+            offset += dwRead;
+            return dwRead;
         } //Read
 
         bool Seek( __int64 location )
@@ -184,11 +212,15 @@ class CStream
 
         ULONG Write( void *pv, ULONG cb )
         {
+            // A write must never reuse bytes cached before the modification.
+            readBufferOffset = -1;
+            readBufferLength = 0;
             if ( seekCalled )
             {
                 LARGE_INTEGER li;
                 li.QuadPart = offset + embedOffset;
-                SetFilePointerEx( hFile, li, NULL, FILE_BEGIN );
+                if ( !SetFilePointerEx( hFile, li, NULL, FILE_BEGIN ) )
+                    return 0;
                 seekCalled = false;
             }
 
@@ -205,7 +237,7 @@ class CStream
             else
                 cb = 0;
 
-            return cb;
+            return ok ? dwWritten : 0;
         } //Write
 };
 

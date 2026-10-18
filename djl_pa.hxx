@@ -8,6 +8,8 @@
 #include <djlimagedata.hxx>
 #include <djltimed.hxx>
 
+#include <algorithm>
+#include <cstring>
 #include <random>
 #include <ppl.h>
 
@@ -30,81 +32,17 @@ class CPathArray
         bool captureTimesLoaded;
         std::mutex mtx;
 
-        static int CompareFT( FILETIME & ftA, FILETIME & ftB )
+        static int CompareFT( const FILETIME & ftA, const FILETIME & ftB )
         {
             ULARGE_INTEGER ulA, ulB;
-            ulA.LowPart = ftA.dwLowDateTime;
-            ulA.HighPart = ftA.dwHighDateTime;
-            ulB.LowPart = ftB.dwLowDateTime;
-            ulB.HighPart = ftB.dwHighDateTime;
+            static_assert( sizeof( FILETIME ) == sizeof( ULARGE_INTEGER ), "FILETIME size mismatch" );
+            // Fixed-size memcpy permits unaligned loads without pointer aliasing violations.
+            // Optimized builds load each timestamp directly as a 64-bit value.
+            std::memcpy( &ulA, &ftA, sizeof ulA );
+            std::memcpy( &ulB, &ftB, sizeof ulB );
 
             return ( ulA.QuadPart > ulB.QuadPart ) ? 1 : ( ulA.QuadPart < ulB.QuadPart ) ? -1 : 0;
         } //CompareFT
-
-        static int PIAttributeCompare( const void * a, const void * b )
-        {
-            PathItem *pa = (PathItem *) a;
-            PathItem *pb = (PathItem *) b;
-
-            return ( ( pa->ulAttribute > pb->ulAttribute ) ? 1 : ( pa->ulAttribute == pb->ulAttribute ) ? 0 : -1 );
-        } //PIAttributeCompare
-
-        static int PILastWriteCompare( const void * a, const void * b )
-        {
-            PathItem *pa = (PathItem *) a;
-            PathItem *pb = (PathItem *) b;
-
-            return CompareFT( pa->ftLastWrite, pb->ftLastWrite );
-        } //PILastWriteCompare
-        
-        static int PICreationCompare( const void * a, const void * b )
-        {
-            PathItem *pa = (PathItem *) a;
-            PathItem *pb = (PathItem *) b;
-
-            return CompareFT( pa->ftCreation, pb->ftCreation );
-        } //PICreationCompare
-        
-        static int PICaptureCompare( const void * a, const void * b )
-        {
-            PathItem *pa = (PathItem *) a;
-            PathItem *pb = (PathItem *) b;
-
-            return CompareFT( pa->ftCapture, pb->ftCapture );
-        } //PICaptureCompare
-        
-        static int PIPathCompare( const void * a, const void * b )
-        {
-            PathItem *pa = (PathItem *) a;
-            PathItem *pb = (PathItem *) b;
-
-            return wcscmp( pa->pwcPath, pb->pwcPath );
-        } //PIPathCompare
-
-        static int PIAttributeCompareDescending( const void * a, const void * b )
-        {
-            return PIAttributeCompare( b, a );
-        } //PIAttributeCompareDescending
-
-        static int PILastWriteCompareDescending( const void * a, const void * b )
-        {
-            return PILastWriteCompare( b, a );
-        } //PILastWriteCompareDescending
-        
-        static int PICreationCompareDescending( const void * a, const void * b )
-        {
-            return PICreationCompare( b, a );
-        } //PICreationCompareDescending
-        
-        static int PICaptureCompareDescending( const void * a, const void * b )
-        {
-            return PICaptureCompare( b, a );
-        } //PICaptureCompareDescending
-        
-        static int PIPathCompareDescending( const void * a, const void * b )
-        {
-            return PIPathCompare( b, a );
-        } //PIPathCompareDescendingDescending
 
         void PrintList()
         {
@@ -153,7 +91,7 @@ class CPathArray
         {
             for ( size_t i = 0; i < elements.size(); i++ )
             {
-                delete elements[ i ].pwcPath;
+                delete [] elements[ i ].pwcPath;
                 elements[ i ].pwcPath = NULL;
             }
 
@@ -180,22 +118,38 @@ class CPathArray
 
         void SortOnAttribute( bool ascending = true )
         {
-            qsort( elements.data(), elements.size(), sizeof PathItem, ascending ? PIAttributeCompare : PIAttributeCompareDescending );
+            std::sort( elements.begin(), elements.end(), [ascending] ( const PathItem & a, const PathItem & b )
+            {
+                int c = ( a.ulAttribute > b.ulAttribute ) - ( a.ulAttribute < b.ulAttribute );
+                return ascending ? c < 0 : c > 0;
+            } );
         } //SortOnAttribute
 
         void SortOnLastWrite( bool ascending = true )
         {
-            qsort( elements.data(), elements.size(), sizeof PathItem, ascending ? PILastWriteCompare : PILastWriteCompareDescending );
+            std::sort( elements.begin(), elements.end(), [ascending] ( const PathItem & a, const PathItem & b )
+            {
+                int c = CompareFT( a.ftLastWrite, b.ftLastWrite );
+                return ascending ? c < 0 : c > 0;
+            } );
         } //SortOnLastWrite
 
         void SortOnCreation( bool ascending = true )
         {
-            qsort( elements.data(), elements.size(), sizeof PathItem, ascending ? PICreationCompare : PICreationCompareDescending );
+            std::sort( elements.begin(), elements.end(), [ascending] ( const PathItem & a, const PathItem & b )
+            {
+                int c = CompareFT( a.ftCreation, b.ftCreation );
+                return ascending ? c < 0 : c > 0;
+            } );
         } //SortOnCreation
 
         void SortOnPath( bool ascending = true )
         {
-            qsort( elements.data(), elements.size(), sizeof PathItem, ascending ? PIPathCompare : PIPathCompareDescending );
+            std::sort( elements.begin(), elements.end(), [ascending] ( const PathItem & a, const PathItem & b )
+            {
+                int c = wcscmp( a.pwcPath, b.pwcPath );
+                return ascending ? c < 0 : c > 0;
+            } );
         } //SortOnPath
 
         void SortOnCapture( bool ascending = true )
@@ -226,7 +180,7 @@ class CPathArray
                         st.wHour = (WORD) atoi( dateTime + 11 );
                         st.wMinute = (WORD) atoi( dateTime + 14 );
                         st.wSecond = (WORD) atoi( dateTime + 17 );
-                        tracer.Trace( "parsed time '%s': %d, %d, %d, %d, %d, %d\n", dateTime, st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond );
+                        //tracer.Trace( "parsed time '%s': %d, %d, %d, %d, %d, %d\n", dateTime, st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond );
 
                         SystemTimeToFileTime( &st, &elements[i].ftCapture );
                     }
@@ -240,9 +194,13 @@ class CPathArray
                 captureTimesLoaded = true;
             }
 
-            qsort( elements.data(), elements.size(), sizeof PathItem, ascending ? PICaptureCompare : PICaptureCompareDescending );
+            std::sort( elements.begin(), elements.end(), [ascending] ( const PathItem & a, const PathItem & b )
+            {
+                int c = CompareFT( a.ftCapture, b.ftCapture );
+                return ascending ? c < 0 : c > 0;
+            } );
             tracer.Trace( "sorted on capture time, ascending %d\n", ascending );
-            PrintList();
+            //PrintList(); // Per-file path and timestamp dumps make startup tracing expensive.
         } //SortOnCapture
 
         void InvertSort()
@@ -254,9 +212,21 @@ class CPathArray
                 swap( elements[ t++ ], elements[ b-- ] );
         } //InvertSort
 
+        // Source must be private to the calling worker. Transfer path ownership in one lock.
+        void AppendFrom( CPathArray & source )
+        {
+            if ( this == &source || source.elements.empty() )
+                return;
+
+            lock_guard<mutex> lock( mtx );
+            elements.insert( elements.end(), source.elements.begin(), source.elements.end() );
+            source.elements.clear();
+            captureTimesLoaded = false;
+        }
+
         void Add( WCHAR * pwc, FILETIME & creation, FILETIME & lastWrite )
         {
-            PathItem pi;
+            PathItem pi = {};
             pi.ftCreation = creation;
             pi.ftLastWrite = lastWrite;
             size_t len = 1 + wcslen( pwc );
@@ -304,7 +274,7 @@ class CPathArray
             if ( item >= elements.size() )
                 return false;
 
-            delete elements[ item ].pwcPath;
+            delete [] elements[ item ].pwcPath;
             elements[ item ].pwcPath = NULL;
 
             elements.erase( elements.begin() + item );

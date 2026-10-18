@@ -35,7 +35,7 @@ class CEnumFolder
 
             for ( int i = 0; i < extensionCount; i++ )
             {
-                int c = wcscmp( pext, extensions[ i ] );
+                int c = _wcsicmp( pext, extensions[ i ] );
 
                 if ( 0 == c )
                     return true;
@@ -80,7 +80,7 @@ class CEnumFolder
             if ( 0 == len )
                 return;
 
-            WCHAR *pwcSpec = ( 0 == pwcFileSpec ) ? L"*" : pwcFileSpec;
+            const WCHAR *pwcSpec = ( 0 == pwcFileSpec ) ? L"*" : pwcFileSpec;
             size_t specLen = wcslen( pwcSpec );
 
             WCHAR awc[ MAX_PATH ];
@@ -103,6 +103,9 @@ class CEnumFolder
             bool allFiles = ( !wcscmp( pwcSpec, L"*" ) || !wcscmp( pwcSpec, L"*.*" ) );
 
             CStringArray aDirs;
+            CPathArray pathBatch;
+            CStringArray stringBatch;
+            const size_t batchSize = 256;
             WIN32_FIND_DATA fd;
             HANDLE hFile = FindFirstFileEx( awc, FindExInfoBasic, &fd, FindExSearchNameMatch, 0, FIND_FIRST_EX_LARGE_FETCH | FIND_FIRST_EX_ON_DISK_ENTRIES_ONLY );
 
@@ -112,6 +115,11 @@ class CEnumFolder
                 {
                     if ( wcscmp( fd.cFileName, L"." ) && wcscmp( fd.cFileName, L".." ) )
                     {
+                        bool isDirectory = ( 0 != ( fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY ) );
+                        if ( isDirectory ? !( recurse && allFiles ) : !HasValidExtension( fd.cFileName ) )
+                            continue;
+
+                        // Preserve existing lowercase paths, but do no path work for rejected files.
                         _wcslwr( fd.cFileName );
                         size_t namelen = wcslen( fd.cFileName );
         
@@ -124,12 +132,20 @@ class CEnumFolder
                                 if ( recurse && allFiles )
                                     aDirs.Add( awc );
                             }
-                            else if ( HasValidExtension( fd.cFileName ) )
+                            else
                             {
                                 if ( 0 != resultPaths )
-                                    resultPaths->Add( awc, fd.ftCreationTime, fd.ftLastWriteTime );
+                                {
+                                    pathBatch.Add( awc, fd.ftCreationTime, fd.ftLastWriteTime );
+                                    if ( pathBatch.Count() >= batchSize )
+                                        resultPaths->AppendFrom( pathBatch );
+                                }
                                 if ( 0 != resultStrings )
-                                    resultStrings->Add( awc );
+                                {
+                                    stringBatch.Add( awc );
+                                    if ( stringBatch.Count() >= batchSize )
+                                        resultStrings->AppendFrom( stringBatch );
+                                }
                             }
                         }
                         else
@@ -141,6 +157,11 @@ class CEnumFolder
         
                 FindClose( hFile );
             }
+
+            if ( resultPaths )
+                resultPaths->AppendFrom( pathBatch );
+            if ( resultStrings )
+                resultStrings->AppendFrom( stringBatch );
 
             if ( recurse )
             {

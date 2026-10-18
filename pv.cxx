@@ -1068,7 +1068,7 @@ extern "C" INT_PTR WINAPI HelpDialogProc( HWND hdlg, UINT message, WPARAM wParam
                                      "\tfolder\t\tpath of folder with images (default is current path)\n"
                                      "\t-e\t\tfile extension of files to include. e.g. /e:mp3\n"
                                      "\t-s\t\tstart slideshow\n"
-                                     "\t-t\t\tdebug tracing to %temp%\\tracer.txt. t=append T=overwrite\n"
+                                     "\t-t\t\tdebug tracing to pv.log in the current folder. t=append T=overwrite\n"
                                      "\n"
                                      "mouse:\n"
                                      "\tleft-click \t\tdisplay 1:1 pixel for pixel\n"
@@ -2138,10 +2138,14 @@ int WINAPI wWinMain( _In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,
 
     CEnumFolder enumFolder( true, g_pImageArray, pwcExtensions, cExtensions );
     enumFolder.Enumerate( awcPhotoPath, L"*" );
-    SortImages();
-
     timedFinding.Complete();
-    tracer.Trace( "time finding %d files: %lld\n", g_pImageArray->Count(), timeFinding );
+    tracer.Trace( "time enumerating %zu files: %lld milliseconds\n", g_pImageArray->Count(), timeFinding / CTimed::NanoPerMilli() );
+
+    long long timeSorting = 0;
+    CTimed timedSorting( timeSorting );
+    SortImages();
+    timedSorting.Complete();
+    tracer.Trace( "time sorting %zu files: %lld milliseconds\n", g_pImageArray->Count(), timeSorting / CTimed::NanoPerMilli() );
 
     if ( 0 != awcStartingPhoto[ 0 ] )
         NavigateToStartingPhoto( awcStartingPhoto );

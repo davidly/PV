@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <random>
 
 class CStringArray
@@ -7,14 +8,6 @@ class CStringArray
     private:
         vector<WCHAR *> elements;
         std::mutex mtx;
-
-        static int PathCompare( const void * a, const void * b )
-        {
-            WCHAR *pa = *(WCHAR **) a;
-            WCHAR *pb = *(WCHAR **) b;
-
-            return ( wcscmp( pa, pb ) );
-        } //PathCompare
 
     public:
         CStringArray()
@@ -32,7 +25,10 @@ class CStringArray
 
         void Sort()
         {
-            qsort( elements.data(), elements.size(), sizeof( WCHAR *), PathCompare );
+            std::sort( elements.begin(), elements.end(), [] ( const WCHAR * a, const WCHAR * b )
+            {
+                return wcscmp( a, b ) < 0;
+            } );
         } //Sort
 
         PWCHAR & operator[] ( size_t i ) { return elements[ i ]; }
@@ -41,7 +37,7 @@ class CStringArray
         {
             for ( size_t i = 0; i < elements.size(); i++ )
             {
-                delete elements[ i ];
+                delete [] elements[ i ];
                 elements[ i ] = NULL;
             }
 
@@ -65,6 +61,17 @@ class CStringArray
                 swap( elements[ a ], elements[ b ] );
             }
         } //Randomize
+
+        // Source must be private to the calling worker. Transfer string ownership in one lock.
+        void AppendFrom( CStringArray & source )
+        {
+            if ( this == &source || source.elements.empty() )
+                return;
+
+            lock_guard<mutex> lock( mtx );
+            elements.insert( elements.end(), source.elements.begin(), source.elements.end() );
+            source.elements.clear();
+        }
 
         void Add( WCHAR * pwc )
         {
