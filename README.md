@@ -56,7 +56,7 @@ libraw_static.lib to your LIB environment variable (if using LibRaw).
 
 There is no install for PV -- just copy pv.exe to a folder in your path. You can also
 right-click on image files in Explorer to open files with PV and/or make PV the default
-app for various image formats.
+app for various image formats. Download [pv.exe](https://github.com/davidly/PV/releases).
 
 ![PV Help Screenshot](help.png)
 
