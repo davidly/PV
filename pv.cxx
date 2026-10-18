@@ -589,7 +589,7 @@ HRESULT LoadCurrentFileD2D( HWND hwnd, const WCHAR * pwcPath, IStream * pStream,
         CLibRaw libraw;
         int colors = 0;
         int bpc = 8; // use 16 when hdr display support is added
-        unique_ptr<byte> pb( libraw.ProcessRaw( pwcPath, bpc, *pwidth, *pheight, colors ) );
+        unique_ptr<byte[]> pb( libraw.ProcessRaw( pwcPath, bpc, *pwidth, *pheight, colors ) );
 
         if ( 0 == pb.get() )
         {
@@ -728,13 +728,13 @@ HRESULT LoadCurrentFileD2D( HWND hwnd, const WCHAR * pwcPath, IStream * pStream,
 
 bool LoadCurrentFileUsingD2D( HWND hwnd )
 {
-    unique_ptr<WCHAR> titleResource( new WCHAR[ 100 ] );
+    unique_ptr<WCHAR[]> titleResource( new WCHAR[ 100 ] );
     int ret = LoadStringW( NULL, ID_PV_STRING_TITLE, titleResource.get(), 100 );
     if ( 0 == ret )
         titleResource.get()[0] = 0;
 
     const int maxTitleLen = MAX_PATH + 100;
-    unique_ptr<WCHAR> winTitle( new WCHAR[ maxTitleLen ] );
+    unique_ptr<WCHAR[]> winTitle( new WCHAR[ maxTitleLen ] );
 
     if ( 0 == g_pImageArray->Count() )
     {
@@ -800,16 +800,16 @@ bool LoadCurrentFileUsingD2D( HWND hwnd )
     if ( foundEmbedding && !useLibRaw && isRaw )
     {
         CIStream * pStream = new CIStream( pwcFile, llEmbeddedOffset, llEmbeddedLength );
+
+        // Attach the initial reference before any error return; constructing a ComPtr from pStream would AddRef.
+        ComPtr<IStream> stream;
+        stream.Attach( pStream );
+
         if ( !pStream->Ok() )
         {
             tracer.Trace( "can't open IStream for embedded image\n" );
             return false;
         }
-
-        // The ComPtr constructor that takes an object does an AddRef(), and this leads to leaks. Avoid that.
-
-        ComPtr<IStream> stream;
-        stream.Attach( pStream );
 
         HRESULT hr = LoadCurrentFileD2D( hwnd, NULL, stream.Get(), &availableWidth, &availableHeight, orientationValue, false );
         if ( FAILED( hr ) )
@@ -952,7 +952,7 @@ HBITMAP CreateHBITMAP( IWICBitmapSource & bitmap )
 
     if ( height > 1 )
     {
-        unique_ptr<::byte> buffer( new ::byte[ cbStride ] );
+        unique_ptr<::byte[]> buffer( new ::byte[ cbStride ] );
 
         for ( size_t y = 0; y < height / 2; y++ )
         {
@@ -1128,11 +1128,11 @@ extern "C" INT_PTR WINAPI HelpDialogProc( HWND hdlg, UINT message, WPARAM wParam
             switch( LOWORD( wParam ) )
             {
                 case IDOK:
-                    EndDialog( hdlg, IDOK );
-                    break;
+                    DestroyWindow( hdlg );
+                    return TRUE;
                 case IDCANCEL:
-                    EndDialog( hdlg, IDCANCEL );
-                    break;
+                    DestroyWindow( hdlg );
+                    return TRUE;
             }
             break;
         }
@@ -1350,7 +1350,7 @@ void DeleteCommand( HWND hwnd )
         else
         {
             DWORD err = GetLastError();
-            unique_ptr<WCHAR> deleteFailed( new WCHAR[ 100 ] );
+            unique_ptr<WCHAR[]> deleteFailed( new WCHAR[ 100 ] );
             int ret = LoadStringW( NULL, ID_PV_STRING_DELETE_FAILED, deleteFailed.get(), 100 );
             if ( 0 != ret )
             {
@@ -1534,7 +1534,7 @@ LRESULT CALLBACK WindowProc( HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam 
                     g_SortImagesBy = (PVSortImagesBy) sortIndex;
                 }
     
-                if ( g_pImageArray )
+                if ( g_pImageArray && ( 0 != g_pImageArray->Count() ) )
                 {
                     wcscpy( awcCurrent, g_pImageArray->Get( g_currentBitmapIndex ) );
                     SortImages();
@@ -1679,7 +1679,13 @@ LRESULT CALLBACK WindowProc( HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam 
                 {
                     if ( !randomizedYet )
                     {
-                        g_pImageArray->Randomize();
+                        if ( 0 != g_pImageArray->Count() )
+                        {
+                            // Keep the current index associated with the photo still on screen.
+                            wcscpy_s( awcCurrent, _countof( awcCurrent ), g_pImageArray->Get( g_currentBitmapIndex ) );
+                            g_pImageArray->Randomize();
+                            NavigateToStartingPhoto( awcCurrent );
+                        }
                         randomizedYet = true;
                     }
 
@@ -1721,7 +1727,7 @@ LRESULT CALLBACK WindowProc( HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam 
                     {
                         //tracer.Trace( "found lat %.7lf and lon %.7lf\n", lat, lon );
 
-                        unique_ptr<WCHAR> mapUrl( new WCHAR[ 100 ] );
+                        unique_ptr<WCHAR[]> mapUrl( new WCHAR[ 100 ] );
                         int ret = LoadStringW( NULL, ID_PV_STRING_MAP_URL, mapUrl.get(), 100 );
                         if ( 0 != ret )
                         {

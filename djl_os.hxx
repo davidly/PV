@@ -22,6 +22,7 @@
 
     #define not_inlined __declspec(noinline)
     #define force_inlined __forceinline
+    #define always_inlined __forceinline
 
     inline void sleep_ms( uint64_t ms ) { SleepEx( (DWORD) ms, FALSE ); }
 
@@ -44,6 +45,7 @@
     #define MAX_PATH 255
     #define not_inlined
     #define force_inlined __inline
+    #define always_inlined __inline // Watcom __inline is a hint, not a mandate; mark noinline by hand if it bloats a segment
 
     inline void sleep_ms( uint64_t ms ) {}
 
@@ -67,14 +69,12 @@
 
 #else // Linux, MacOS, etc.
 
-    #if !defined( OLDGCC ) && !defined( __mc68000__ )
-        #include <termios.h>
-    #endif
+    #include <termios.h>
 
-#ifdef __mc68000__
-#define truncl trunc
-extern "C" int nanosleep( const struct timespec * duration, struct timespec * rem );
-#endif
+    #ifdef __mc68000__
+        #define truncl trunc
+        extern "C" int nanosleep( const struct timespec * duration, struct timespec * rem );
+    #endif
 
     #include <thread>
     #include <sched.h>
@@ -83,12 +83,13 @@ extern "C" int nanosleep( const struct timespec * duration, struct timespec * re
 
     #define not_inlined __attribute__ ((noinline))
     #define force_inlined inline
+    #define always_inlined __attribute__((always_inline)) inline // overrides size-based inlining heuristics, unlike force_inlined above
 
     inline void bump_thread_priority() {}
 
     inline void set_process_affinity( uint64_t processAffinityMask )
     {
-#if !defined(__APPLE__) && !defined( OLDGCC ) && !defined( __mc68000__ )
+#if !defined(__APPLE__) && !defined( __mc68000__ )
         cpu_set_t mask;
         CPU_ZERO( &mask );
 
@@ -108,7 +109,7 @@ extern "C" int nanosleep( const struct timespec * duration, struct timespec * re
     #define _stricmp strcasecmp
     #define MAX_PATH 1024
 
-    inline char * strupr( char * s )
+    extern "C" inline char * strupr( char * s )
     {
         for ( char * t = s; *t; t++ )
             *t = toupper( *t );
@@ -117,16 +118,16 @@ extern "C" int nanosleep( const struct timespec * duration, struct timespec * re
 
     inline char * _strupr( char * s ) { return strupr( s ); }
 
-    inline char * strlwr( char * s )
+    extern "C" inline char * strlwr( char * s )
     {
         for ( char * t = s; *t; t++ )
             *t = tolower( *t );
         return s;
     } //strlwr
 
-    inline uint64_t _abs64( int64_t x ) { return ( x > 0 ) ? x : -x; }
-
     inline char * _strlwr( char * s ) { return strlwr( s ); }
+
+    inline uint64_t _abs64( int64_t x ) { return ( x > 0 ) ? x : -x; }
 
     inline void sleep_ms( uint64_t ms )
     {
@@ -134,10 +135,7 @@ extern "C" int nanosleep( const struct timespec * duration, struct timespec * re
         long ns = (long) ( total_ns % 1000000000 );
         long sec = (long) ( total_ns / 1000000000 );
         struct timespec ts = { sec, ns };
-
-        #if !defined( OLDGCC )
-            nanosleep( &ts, 0 );
-        #endif
+        nanosleep( &ts, 0 );
     } //sleep_ms
 
     inline bool file_exists( char const * pfile )
@@ -341,7 +339,7 @@ inline char printable( uint8_t x )
     return x;
 } //printable
 
-#if ( ( defined( __clang__ ) || defined( __GNUC__ ) ) && !defined( OLDGCC ) )
+#if ( ( defined( __clang__ ) || defined( __GNUC__ ) ) )
 
     inline uint64_t flip_endian64( uint64_t x ) { return __builtin_bswap64( x ); }
     inline uint32_t flip_endian32( uint32_t x ) { return __builtin_bswap32( x ); }
@@ -358,7 +356,7 @@ inline char printable( uint8_t x )
     inline uint64_t flip_endian64( uint64_t x )
     {
         return ( ( x & 0xffull ) << 56 ) | ( ( x & 0xff00ull ) << 40 ) | ( ( x & 0xff0000ull ) << 24 ) | ( ( x & 0xff000000ull ) << 8 ) |
-               ( ( x & 0xff00000000ull ) >> 8 ) | ( ( x & 0xff0000000000ull ) >> 24 ) | ( ( x & 0xff000000000000ull ) >> 40 ) | ( x >> 56 );
+                ( ( x & 0xff00000000ull ) >> 8 ) | ( ( x & 0xff0000000000ull ) >> 24 ) | ( ( x & 0xff000000000000ull ) >> 40 ) | ( x >> 56 );
     } //flip_endian64
 
     inline uint32_t flip_endian32( uint32_t x )
@@ -370,6 +368,50 @@ inline char printable( uint8_t x )
     {
         return ( ( x >> 8 ) | ( ( x & 0xff ) << 8 ) );
     } //flip_endian16
+
+#endif
+
+// le16_t/le32_t: storage types for multi-byte fields that live in guest memory or in a fixed
+// little-endian file/wire format (e.g. an MZ EXE header) -- places where the bytes are
+// always little-endian regardless of host, and are also visible to code that doesn't go
+// through a swap-aware accessor (e.g. a struct overlaid directly on emulated RAM). On a
+// little-endian host these are plain integers with zero overhead; on a big-endian host
+// every load/store transparently byte-swaps.
+
+#ifdef TARGET_BIG_ENDIAN
+
+class le16_t
+{
+    uint16_t v;
+  public:
+    le16_t() : v( 0 ) {}
+    le16_t( uint16_t x ) : v( flip_endian16( x ) ) {}
+    operator uint16_t() const { return flip_endian16( v ); }
+    le16_t & operator=( uint16_t x ) { v = flip_endian16( x ); return *this; }
+    le16_t & operator++() { *this = (uint16_t) ( (uint16_t) *this + 1 ); return *this; }
+    le16_t operator++( int ) { le16_t tmp = *this; ++(*this); return tmp; }
+    le16_t & operator+=( uint16_t x ) { *this = (uint16_t) ( (uint16_t) *this + x ); return *this; }
+    le16_t & operator-=( uint16_t x ) { *this = (uint16_t) ( (uint16_t) *this - x ); return *this; }
+}; //le16_t
+
+class le32_t
+{
+    uint32_t v;
+  public:
+    le32_t() : v( 0 ) {}
+    le32_t( uint32_t x ) : v( flip_endian32( x ) ) {}
+    operator uint32_t() const { return flip_endian32( v ); }
+    le32_t & operator=( uint32_t x ) { v = flip_endian32( x ); return *this; }
+    le32_t & operator++() { *this = (uint32_t) ( (uint32_t) *this + 1 ); return *this; }
+    le32_t operator++( int ) { le32_t tmp = *this; ++(*this); return tmp; }
+    le32_t & operator+=( uint32_t x ) { *this = (uint32_t) ( (uint32_t) *this + x ); return *this; }
+    le32_t & operator-=( uint32_t x ) { *this = (uint32_t) ( (uint32_t) *this - x ); return *this; }
+}; //le32_t
+
+#else
+
+typedef uint16_t le16_t;
+typedef uint32_t le32_t;
 
 #endif
 
