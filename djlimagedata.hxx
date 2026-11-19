@@ -130,6 +130,20 @@ private:
     DWORD g_Heif_Exif_ItemID                = 0xffffffff;
     __int64 g_Heif_Exif_Offset              = 0;
     __int64 g_Heif_Exif_Length              = 0;
+    struct HeifImageProperty
+    {
+        DWORD width = 0;
+        DWORD height = 0;
+    };
+    struct HeifItemPropertyAssociation
+    {
+        DWORD itemID;
+        DWORD propertyID;
+    };
+    DWORD g_Heif_Primary_ItemID = 0xffffffff;
+    vector<HeifImageProperty> g_Heif_Properties;
+    vector<HeifItemPropertyAssociation> g_Heif_Item_Properties;
+    vector<DWORD> g_Heif_Primary_Properties;
     __int64 g_Canon_CR3_Exif_IFD0           = 0;
     __int64 g_Canon_CR3_Exif_Exif_IFD       = 0;
     __int64 g_Canon_CR3_Exif_Makernotes_IFD = 0;
@@ -1338,6 +1352,7 @@ private:
             __int64 offset;
             __int64 length;
             CStream * pStream;
+            bool valid;
     
         public:
             HeifStream( CStream *ps, __int64 o, __int64 l )
@@ -1345,72 +1360,101 @@ private:
                 offset = o;
                 length = l;
                 pStream = ps;
+                valid = ( NULL != ps && o >= 0 && l >= 0 &&
+                          o <= ps->Length() && l <= ps->Length() - o );
             }
     
             __int64 Length() { return length; }
             __int64 Offset() { return offset; }
             CStream * Stream() { return pStream; }
+            bool Valid() const { return valid; }
+
+            bool CanRead( __int64 streamOffset, __int64 byteCount ) const
+            {
+                return valid && streamOffset >= 0 && byteCount >= 0 &&
+                       streamOffset <= length && byteCount <= length - streamOffset;
+            }
+
+            __int64 SetLengthLimit( __int64 limit )
+            {
+                __int64 previousLength = length;
+                if ( limit >= 0 && limit <= length )
+                    length = limit;
+                else
+                    valid = false;
+                return previousLength;
+            }
+
+            void RestoreLength( __int64 previousLength ) { length = previousLength; }
+
+            ULONGLONG GetVariable( __int64 & streamOffset, int byteCount )
+            {
+                if ( byteCount < 0 || byteCount > 8 || !CanRead( streamOffset, byteCount ) ||
+                     offset > LLONG_MAX - streamOffset )
+                {
+                    valid = false;
+                    return 0;
+                }
+
+                BYTE bytes[ 8 ] = {};
+                if ( byteCount &&
+                     ( !pStream->Seek( offset + streamOffset ) ||
+                       pStream->Read( bytes, byteCount ) != (ULONG) byteCount ) )
+                {
+                    valid = false;
+                    return 0;
+                }
+
+                ULONGLONG value = 0;
+                for ( int i = 0; i < byteCount; i++ )
+                    value = ( value << 8 ) | bytes[ i ];
+                streamOffset += byteCount;
+                return value;
+            }
     
             DWORD GetDWORD( __int64 & streamOffset, bool littleEndian )
             {
-                DWORD dw = 0;
-
-                if ( pStream->Seek( offset + streamOffset ) )
-                {
-                    pStream->Read( &dw, sizeof dw );
-    
-                    if ( !littleEndian )
-                        dw = _byteswap_ulong( dw );
-    
-                    streamOffset += sizeof dw;
-                }
-    
-                return dw;
+                DWORD value = (DWORD) GetVariable( streamOffset, sizeof value );
+                return littleEndian ? _byteswap_ulong( value ) : value;
             } //GetDWORD
     
             WORD GetWORD( __int64 & streamOffset, bool littleEndian )
             {
-                WORD w = 0;
-
-                if ( pStream->Seek( offset + streamOffset ) )
-                {
-                    pStream->Read( &w, sizeof w );
-            
-                    if ( !littleEndian )
-                        w = _byteswap_ushort( w );
-    
-                    streamOffset += sizeof w;
-                }
-            
-                return w;
+                WORD value = (WORD) GetVariable( streamOffset, sizeof value );
+                return littleEndian ? _byteswap_ushort( value ) : value;
             } //GetWORD
     
             byte GetBYTE( __int64 & streamOffset )
             {
-                byte b = 0;
-
-                if ( pStream->Seek( offset + streamOffset ) )
-                {
-                    pStream->Read( &b, sizeof b );
-    
-                    streamOffset += sizeof b;
-                }
-    
-                return b;
+                return (BYTE) GetVariable( streamOffset, sizeof( BYTE ) );
             } //GetBYTE
 
             void GetBytes( __int64 & streamOffset, void * pData, int byteCount )
             {
-                memset( pData, 0, byteCount );
-    
-                if ( pStream->Seek( offset + streamOffset ) )
-                    pStream->Read( pData, byteCount );
+                if ( byteCount > 0 )
+                    memset( pData, 0, byteCount );
+
+                if ( byteCount < 0 || !CanRead( streamOffset, byteCount ) ||
+                     offset > LLONG_MAX - streamOffset )
+                {
+                    valid = false;
+                    return;
+                }
+
+                if ( byteCount &&
+                     ( !pStream->Seek( offset + streamOffset ) ||
+                       pStream->Read( pData, byteCount ) != (ULONG) byteCount ) )
+                {
+                    valid = false;
+                    return;
+                }
+                streamOffset += byteCount;
             }
     }; //HeifStream
     
     // Heif and CR3 use ISO Base Media File Format ISO/IEC 14496-12. This function walks those files and pulls out data including Exif offsets
     
-    void EnumerateBoxes( HeifStream & hs, DWORD depth )
+    void EnumerateBoxes( HeifStream & hs, DWORD depth, bool insideIpco = false )
     {
         //tracer.Trace( "EnumerateBoxes at depth %d\n", depth );
     
@@ -1421,12 +1465,12 @@ private:
         {
             if ( ( 0 == hs.Length() ) || ( offset >= hs.Length() ) )
                 break;
+
+            if ( !hs.CanRead( offset, 8 ) )
+                break;
     
             __int64 boxOffset = offset;
             ULONGLONG boxLen = hs.GetDWORD( offset, false );
-    
-            if ( 0 == boxLen )
-                break;
     
             DWORD dwTag = hs.GetDWORD( offset, false );
             char tag[ 5 ];
@@ -1438,14 +1482,31 @@ private:
     
             if ( 1 == boxLen )
             {
+                if ( !hs.CanRead( offset, 8 ) )
+                    break;
+
                 ULONGLONG high = hs.GetDWORD( offset, false );
                 ULONGLONG low = hs.GetDWORD( offset, false );
     
                 boxLen = ( high << 32 ) | low;
             }
-    
-            if ( 0 == boxLen )
+
+            if ( !hs.Valid() )
                 break;
+
+            ULONGLONG headerLength = ( offset - boxOffset );
+            if ( 0 == boxLen )
+                boxLen = (ULONGLONG) ( hs.Length() - boxOffset );
+            if ( boxLen < headerLength || boxLen > (ULONGLONG) ( hs.Length() - boxOffset ) )
+                break;
+
+            __int64 enclosingLength = hs.SetLengthLimit( boxOffset + (__int64) boxLen );
+            size_t propertyIndex = 0;
+            if ( insideIpco )
+            {
+                propertyIndex = g_Heif_Properties.size();
+                g_Heif_Properties.push_back( HeifImageProperty() );
+            }
     
             //tracer.Trace( "  tag %s\n", tag );
     
@@ -1466,6 +1527,15 @@ private:
     
                 EnumerateBoxes( hsChild, depth + 1 );
             }
+            else if ( !strcmp( tag, "pitm" ) )
+            {
+                DWORD data = hs.GetDWORD( offset, false );
+                BYTE version = (BYTE) ( data >> 24 );
+                if ( 0 == version )
+                    g_Heif_Primary_ItemID = hs.GetWORD( offset, false );
+                else if ( 1 == version )
+                    g_Heif_Primary_ItemID = hs.GetDWORD( offset, false );
+            }
             else if ( !strcmp( tag, "iinf" ) )
             {
                 DWORD data = hs.GetDWORD( offset, false );
@@ -1485,6 +1555,27 @@ private:
                     HeifStream hsChild( hs.Stream(), hs.Offset() + offset, boxLen - ( offset - boxOffset ) );
     
                     EnumerateBoxes( hsChild, depth + 1 );
+                }
+            }
+            else if ( !strcmp( tag, "ipma" ) )
+            {
+                DWORD data = hs.GetDWORD( offset, false );
+                BYTE version = (BYTE) ( data >> 24 );
+                DWORD flags = data & 0x00ffffff;
+                DWORD entryCount = hs.GetDWORD( offset, false );
+                bool wideAssociations = 0 != ( flags & 1 );
+
+                for ( DWORD entry = 0; entry < entryCount && hs.Valid(); entry++ )
+                {
+                    DWORD itemID = version ? hs.GetDWORD( offset, false ) : hs.GetWORD( offset, false );
+                    BYTE associationCount = hs.GetBYTE( offset );
+                    for ( BYTE association = 0; association < associationCount && hs.Valid(); association++ )
+                    {
+                        WORD value = wideAssociations ? hs.GetWORD( offset, false ) : hs.GetBYTE( offset );
+                        DWORD propertyID = wideAssociations ? ( value & 0x7fff ) : ( value & 0x7f );
+                        if ( propertyID )
+                            g_Heif_Item_Properties.push_back( { itemID, propertyID } );
+                    }
                 }
             }
             else if ( !strcmp( tag, "infe" ) )
@@ -1654,6 +1745,22 @@ private:
                 BYTE bitDepthChroma = ( hs.GetBYTE( offset ) & 0x7 ) + 8;
                 WORD avgFrameRate = hs.GetWORD( offset, false );
             }
+            else if ( !strcmp( tag, "ispe" ) && boxLen >= 20 &&
+                      boxLen <= (ULONGLONG) ( hs.Length() - boxOffset ) )
+            {
+                if ( boxLen - headerLength >= 12 )
+                {
+                    hs.GetDWORD( offset, false ); // full box version and flags
+                    DWORD width = hs.GetDWORD( offset, false );
+                    DWORD height = hs.GetDWORD( offset, false );
+
+                    if ( insideIpco && propertyIndex < g_Heif_Properties.size() )
+                    {
+                        g_Heif_Properties[ propertyIndex ].width = width;
+                        g_Heif_Properties[ propertyIndex ].height = height;
+                    }
+                }
+            }
             else if ( !strcmp( tag, "iprp" ) )
             {
                 HeifStream hsChild( hs.Stream(), hs.Offset() + offset, boxLen - ( offset - boxOffset ) );
@@ -1664,7 +1771,7 @@ private:
             {
                 HeifStream hsChild( hs.Stream(), hs.Offset() + offset, boxLen - ( offset - boxOffset ) );
     
-                EnumerateBoxes( hsChild, depth + 1 );
+                EnumerateBoxes( hsChild, depth + 1, true );
             }
             else if ( !strcmp( tag, "moov" ) ) // Canon CR3 format
             {
@@ -1789,6 +1896,13 @@ private:
                 }
             }
     
+            if ( !hs.Valid() )
+            {
+                hs.RestoreLength( enclosingLength );
+                break;
+            }
+
+            hs.RestoreLength( enclosingLength );
             box++;
             offset = boxOffset + boxLen;
         } while ( true );
@@ -1798,10 +1912,39 @@ private:
     
     void EnumerateHeif( CStream * pStream )
     {
+        g_Heif_Primary_ItemID = 0xffffffff;
+        g_Heif_Exif_ItemID = 0xffffffff;
+        g_Heif_Exif_Offset = 0;
+        g_Heif_Exif_Length = 0;
+        g_Heif_Properties.clear();
+        g_Heif_Item_Properties.clear();
+        g_Heif_Primary_Properties.clear();
+
         __int64 length = pStream->Length();
         HeifStream hs( pStream, 0, length );
     
         EnumerateBoxes( hs, 0 );
+
+        for ( const HeifItemPropertyAssociation & association : g_Heif_Item_Properties )
+        {
+            if ( association.itemID == g_Heif_Primary_ItemID )
+                g_Heif_Primary_Properties.push_back( association.propertyID );
+        }
+
+        for ( DWORD propertyID : g_Heif_Primary_Properties )
+        {
+            if ( 0 == propertyID || propertyID > g_Heif_Properties.size() )
+                continue;
+
+            const HeifImageProperty & property = g_Heif_Properties[ propertyID - 1 ];
+            if ( property.width > 0 && property.width <= INT_MAX &&
+                 property.height > 0 && property.height <= INT_MAX )
+            {
+                g_ImageWidth = (int) property.width;
+                g_ImageHeight = (int) property.height;
+                break;
+            }
+        }
     } //EnumerateHeif
     
     void EnumerateIFD0( __int64 IFDOffset, __int64 headerBase, bool littleEndian, WCHAR const * pwcExt )
@@ -2008,7 +2151,8 @@ private:
         const BYTE MARKER_EOI   = 0xd9;          // end of image
         const BYTE MARKER_COM   = 0xfe;          // comment
     
-        DWORD offset = 2 + startingOffset;
+        __int64 offset = 2 + startingOffset;
+        __int64 fileLength = g_pStream->Length();
 
         #pragma pack(push, 1)
         struct JpgRecord
@@ -2041,11 +2185,11 @@ private:
         };
         #pragma pack(pop)
     
-        do
+        while ( offset >= 0 && offset <= fileLength - 2 )
         {
             JpgRecord record;
-            GetBytes( offset, &record, sizeof record );
-            record.FixEndian( false );
+            record.marker = GetBYTE( offset );
+            record.segment = GetBYTE( offset + 1 );
 
             if ( 0xff != record.marker )
                 return exifOffset;
@@ -2059,8 +2203,24 @@ private:
                 continue;
             }
     
+            if ( offset > fileLength - 4 )
+                break;
+
             WORD length = GetWORD( offset + 2, false );
+            if ( length < 2 ||
+                 length > fileLength - offset - 2 )
+                break;
+
             WORD data_length = length - 2;
+            record.length = length;
+
+            if ( record.segment >= MARKER_SOF0 && record.segment <= MARKER_SOF15 )
+            {
+                if ( length < 8 )
+                    break;
+                GetBytes( offset, &record, sizeof record );
+                record.FixEndian( false );
+            }
 
             if ( MARKER_DHT == record.segment || MARKER_JPG == record.segment || MARKER_DAC == record.segment )
             {
@@ -2090,37 +2250,39 @@ private:
             }
             else if ( MARKER_APP1 == record.segment )
             {
-                char app1Header[ 5 ];
-                GetBytes( (__int64) offset + 4, app1Header, 4 );
-                app1Header[4] = 0;
-    
-                if ( !_stricmp( app1Header, "exif" ) )
+                if ( data_length >= 4 )
                 {
-                    // just return the exifoffset so it can be parsed later
+                    char app1Header[ 5 ];
+                    GetBytes( offset + 4, app1Header, 4 );
+                    app1Header[4] = 0;
+    
+                    if ( !_stricmp( app1Header, "exif" ) )
+                    {
+                        // just return the exifoffset so it can be parsed later
 
-                    exifOffset = offset + 8;
-                }
-                else if ( !_stricmp( app1Header, "http" ) )
-                {
-                    // there will be a null-terminated header string then another string with xmp data
+                        exifOffset = (int) ( offset + 8 );
+                    }
+                    else if ( !_stricmp( app1Header, "http" ) )
+                    {
+                        // there will be a null-terminated header string then another string with xmp data
     
-                    unique_ptr<char> bytes( new char[ data_length + 1 ] );
-                    GetBytes( (__int64) offset + 4, bytes.get(), data_length );
-                    bytes.get()[ data_length ] = 0;
-                    size_t headerlen = strlen( bytes.get() );
+                        unique_ptr<char> bytes( new char[ data_length + 1 ] );
+                        GetBytes( offset + 4, bytes.get(), data_length );
+                        bytes.get()[ data_length ] = 0;
+                        size_t headerlen = strlen( bytes.get() );
     
-                    EnumerateXMPData( bytes.get() + headerlen + 1, ( offset + 4 + headerlen + 1 ) );
+                        if ( headerlen < data_length )
+                            EnumerateXMPData( bytes.get() + headerlen + 1,
+                                              offset + 4 + headerlen + 1 );
+                    }
                 }
             }
-    
-            if ( 0 == record.length )
-                break;
     
             // note: this will not work for many segments, where additional math is required to find lengths.
             // Luckily, the 0xc0 Start Of Frame 0 SOF0 segment generally comes early
     
-            offset += ( record.length + 2 );
-        } while (true);
+            offset += ( length + 2 );
+        }
     
         return exifOffset;
     } //ParseOldJpg
@@ -2178,18 +2340,41 @@ private:
     
     void EnumerateWebP()
     {
+        __int64 length = g_pStream->Length();
+        if ( length < 12 )
+            return;
+
+        char riff[ 4 ], form[ 4 ];
+        GetBytes( 0, riff, sizeof riff );
+        DWORD riffSize = GetDWORD( 4, true );
+        GetBytes( 8, form, sizeof form );
+        if ( 0 != memcmp( riff, "RIFF", 4 ) ||
+             0 != memcmp( form, "WEBP", 4 ) || riffSize < 4 )
+            return;
+
+        __int64 riffEnd = (__int64) riffSize + 8;
+        if ( riffEnd > length )
+            riffEnd = length;
+
         RIFFChunk chunk;
         __int64 offset = 12;
-        __int64 length = g_pStream->Length();
-    
-        while ( offset < length )
+        while ( offset <= riffEnd - (int) sizeof( RIFFChunk ) )
         {
             GetBytes( offset, &chunk, sizeof( chunk ) );
-    
-            if ( !strncmp( & chunk.CC[0], "VP8X", 4 ) )
+
+            __int64 dataOffset = offset + sizeof( chunk );
+            if ( chunk.size > riffEnd - dataOffset )
+                break;
+
+            __int64 nextChunkOffset = dataOffset + chunk.size + ( chunk.size & 1 );
+            if ( nextChunkOffset > riffEnd )
+                break;
+
+            if ( 0 == memcmp( chunk.CC, "VP8X", 4 ) &&
+                 chunk.size >= sizeof( WebPVP8X ) )
             {
                 struct WebPVP8X vp8x;
-                GetBytes( offset + 8, &vp8x, sizeof( vp8x ) );
+                GetBytes( dataOffset, &vp8x, sizeof( vp8x ) );
                 DWORD width = 0, height = 0;
                 memcpy( &width, vp8x.widthm1, 3 );
                 memcpy( &height, vp8x.heightm1, 3 );
@@ -2198,34 +2383,45 @@ private:
                 g_ImageWidth = width;
                 g_ImageHeight = height;
             }
-            else if ( !strncmp( & chunk.CC[0], "VP8 ", 4 ) )
+            else if ( 0 == memcmp( chunk.CC, "VP8 ", 4 ) &&
+                      chunk.size >= sizeof( WebPVP8 ) )
             {
                 struct WebPVP8 vp8;
-                GetBytes( offset + 8, &vp8, sizeof( vp8 ) );
-                g_ImageWidth = vp8.width;
-                g_ImageHeight = vp8.height;
+                GetBytes( dataOffset, &vp8, sizeof( vp8 ) );
+                if ( 0x9d == vp8.startCode[0] && 0x01 == vp8.startCode[1] &&
+                     0x2a == vp8.startCode[2] )
+                {
+                    g_ImageWidth = vp8.width & 0x3fff;
+                    g_ImageHeight = vp8.height & 0x3fff;
+                }
             }
-            else if ( !strncmp( & chunk.CC[0], "VP8L ", 4 ) )
+            else if ( 0 == memcmp( chunk.CC, "VP8L", 4 ) &&
+                      chunk.size >= sizeof( WebPVP8L ) )
             {
                 struct WebPVP8L vp8l;
-                GetBytes( offset + 8, &vp8l, sizeof( vp8l ) );
-                g_ImageWidth = 1 + ( vp8l.metadata & 0x3fff );
-                g_ImageHeight = 1 + ( ( vp8l.metadata >> 14 ) & 0x3fff );
+                GetBytes( dataOffset, &vp8l, sizeof( vp8l ) );
+                if ( 0x2f == vp8l.signature )
+                {
+                    g_ImageWidth = 1 + ( vp8l.metadata & 0x3fff );
+                    g_ImageHeight = 1 + ( ( vp8l.metadata >> 14 ) & 0x3fff );
+                }
             }
-            else if ( !strncmp( & chunk.CC[0], "EXIF", 4 ) )
+            else if ( 0 == memcmp( chunk.CC, "EXIF", 4 ) )
             {
-                g_WebP_Exif_Offset = offset + 8;
+                g_WebP_Exif_Offset = dataOffset;
                 g_WebP_Exif_Length = chunk.size;
             }
-            else if ( !strncmp( & chunk.CC[0], "ANIM", 4 ) )
+            else if ( 0 == memcmp( chunk.CC, "ANIM", 4 ) &&
+                      chunk.size >= sizeof( WebPAnim ) )
             {
                 struct WebPAnim anim;
-                GetBytes( offset + 8, &anim, sizeof( anim ) );
+                GetBytes( dataOffset, &anim, sizeof( anim ) );
             }
-            else if ( !strncmp( & chunk.CC[0], "ANMF", 4 ) )
+            else if ( 0 == memcmp( chunk.CC, "ANMF", 4 ) &&
+                      chunk.size >= sizeof( WebPAnmf ) )
             {
                 struct WebPAnmf anmf;
-                GetBytes( offset + 8, &anmf, sizeof( anmf ) );
+                GetBytes( dataOffset, &anmf, sizeof( anmf ) );
     
                 uint32_t x = 0, y = 0;
                 memcpy( &x, anmf.x, 3 );
@@ -2239,9 +2435,7 @@ private:
                 memcpy( &duration, anmf.duration, 3 );
             }
     
-            offset += 8 + chunk.size;
-            if ( offset & 1 )
-                offset++;
+            offset = nextChunkOffset;
         }
     } //EnumerateWebP
 
@@ -2323,21 +2517,31 @@ private:
 
         BITMAPFILEHEADER bfh;
         GetBytes( 0, &bfh, sizeof bfh );
-    
-        BITMAPV5HEADER bih;
-        GetBytes( sizeof bfh, &bih, sizeof bih );
 
-        //tracer.Trace( "parsed bmp: embedded %d, width %d, height %d\n", embedded, bih.bV5Width, bih.bV5Height );
+        DWORD headerSize = GetDWORD( sizeof bfh, true );
+        if ( headerSize < sizeof BITMAPINFOHEADER ||
+             headerSize > (ULONGLONG) ( len - sizeof bfh ) )
+            return;
+
+        LONG width = (LONG) GetDWORD( sizeof bfh + 4, true );
+        LONG signedHeight = (LONG) GetDWORD( sizeof bfh + 8, true );
+        if ( width <= 0 || 0 == signedHeight || LONG_MIN == signedHeight )
+            return;
+
+        int height = (int) ( signedHeight < 0 ?
+                             -( (LONGLONG) signedHeight ) : signedHeight );
+        if ( height <= 0 )
+            return;
 
         if ( embedded )
         {
-            g_Embedded_Image_Width = bih.bV5Width;
-            g_Embedded_Image_Height = bih.bV5Height;
+            g_Embedded_Image_Width = width;
+            g_Embedded_Image_Height = height;
         }
         else
         {
-            g_ImageWidth = bih.bV5Width;
-            g_ImageHeight = bih.bV5Height;
+            g_ImageWidth = width;
+            g_ImageHeight = height;
         }
     } //ParseBMP
 
@@ -2682,6 +2886,397 @@ private:
         return pwcPath + len;
     } //FindExtension
 
+    void SetImageDimensions( double width, double height )
+    {
+        if ( width >= 1.0 && width <= INT_MAX && height >= 1.0 && height <= INT_MAX )
+        {
+            g_ImageWidth = (int) ( width + 0.5 );
+            g_ImageHeight = (int) ( height + 0.5 );
+        }
+    } //SetImageDimensions
+
+    bool ParseSVGLength( const char * value, size_t length, double & pixels )
+    {
+        string text( value, length );
+        char * end = NULL;
+        double number = strtod( text.c_str(), &end );
+        if ( end == text.c_str() || !( number > 0.0 ) || number > INT_MAX )
+            return false;
+
+        while ( ' ' == *end || '\t' == *end || '\r' == *end || '\n' == *end )
+            end++;
+
+        double scale = 1.0;
+        if ( 0 == _stricmp( end, "px" ) || 0 == *end )
+            scale = 1.0;
+        else if ( 0 == _stricmp( end, "in" ) )
+            scale = 96.0;
+        else if ( 0 == _stricmp( end, "cm" ) )
+            scale = 96.0 / 2.54;
+        else if ( 0 == _stricmp( end, "mm" ) )
+            scale = 96.0 / 25.4;
+        else if ( 0 == _stricmp( end, "pt" ) )
+            scale = 96.0 / 72.0;
+        else if ( 0 == _stricmp( end, "pc" ) )
+            scale = 16.0;
+        else
+            return false;
+
+        pixels = number * scale;
+        return ( pixels >= 1.0 && pixels <= INT_MAX );
+    } //ParseSVGLength
+
+    void EnumerateSVG()
+    {
+        __int64 length = g_pStream->Length();
+        if ( length <= 0 || length > 16 * 1024 * 1024 )
+            return;
+
+        vector<char> xml( (size_t) length + 1, 0 );
+        if ( !g_pStream->Seek( 0 ) || g_pStream->Read( xml.data(), (ULONG) length ) != (ULONG) length )
+            return;
+
+        const char * current = xml.data();
+        const char * end = current + length;
+        while ( current < end )
+        {
+            const char * root = current;
+            while ( root + 4 <= end )
+            {
+                if ( root + 4 < end && 0 == memcmp( root, "<!--", 4 ) )
+                {
+                    const char * commentEnd = root + 4;
+                    while ( commentEnd + 2 < end && 0 != memcmp( commentEnd, "-->", 3 ) )
+                        commentEnd++;
+                    if ( commentEnd + 2 >= end )
+                        return;
+                    root = commentEnd + 3;
+                    continue;
+                }
+                if ( '<' == *root && 0 == _strnicmp( root, "<svg", 4 ) )
+                    break;
+                root++;
+            }
+            if ( root + 4 > end )
+                return;
+            if ( root + 4 < end && ( ( * ( root + 4 ) >= 'a' && * ( root + 4 ) <= 'z' ) ||
+                                     ( * ( root + 4 ) >= 'A' && * ( root + 4 ) <= 'Z' ) ||
+                                       ':' == * ( root + 4 ) || '_' == * ( root + 4 ) ) )
+            {
+                current = root + 4;
+                continue;
+            }
+
+            current = root + 4;
+            double width = 0.0, height = 0.0, viewBoxWidth = 0.0, viewBoxHeight = 0.0;
+            bool hasWidth = false, hasHeight = false, hasViewBox = false;
+            while ( current < end && '>' != *current )
+            {
+                while ( current < end && ( ' ' == *current || '\t' == *current || '\r' == *current || '\n' == *current || '/' == *current ) )
+                    current++;
+                if ( current >= end || '>' == *current )
+                    break;
+
+                const char * attribute = current;
+                while ( current < end && ( ( *current >= 'a' && *current <= 'z' ) ||
+                                           ( *current >= 'A' && *current <= 'Z' ) ||
+                                           ( *current >= '0' && *current <= '9' ) ||
+                                             '_' == *current || ':' == *current || '-' == *current ) )
+                    current++;
+                if ( attribute == current )
+                {
+                    current++;
+                    continue;
+                }
+
+                size_t attributeLength = (size_t) ( current - attribute );
+                while ( current < end && ( ' ' == *current || '\t' == *current || '\r' == *current || '\n' == *current ) )
+                    current++;
+                if ( current >= end || '=' != *current )
+                    continue;
+                current++;
+                while ( current < end && ( ' ' == *current || '\t' == *current || '\r' == *current || '\n' == *current ) )
+                    current++;
+                if ( current >= end || ( '\'' != *current && '"' != *current ) )
+                    continue;
+
+                char quote = *current++;
+                const char * value = current;
+                while ( current < end && quote != *current )
+                    current++;
+                size_t valueLength = (size_t) ( current - value );
+                if ( current < end )
+                    current++;
+
+                if ( 5 == attributeLength && 0 == _strnicmp( attribute, "width", 5 ) )
+                    hasWidth = ParseSVGLength( value, valueLength, width );
+                else if ( 6 == attributeLength && 0 == _strnicmp( attribute, "height", 6 ) )
+                    hasHeight = ParseSVGLength( value, valueLength, height );
+                else if ( 7 == attributeLength && 0 == _strnicmp( attribute, "viewBox", 7 ) )
+                {
+                    vector<char> viewBox( value, value + valueLength );
+                    viewBox.push_back( 0 );
+                    char * p = viewBox.data();
+                    double values[ 4 ];
+                    bool valid = true;
+                    for ( int i = 0; i < _countof( values ); i++ )
+                    {
+                        while ( ' ' == *p || '\t' == *p || '\r' == *p || '\n' == *p || ',' == *p )
+                            p++;
+                        char * parsedEnd = NULL;
+                        values[ i ] = strtod( p, &parsedEnd );
+                        if ( parsedEnd == p )
+                        {
+                            valid = false;
+                            break;
+                        }
+                        p = parsedEnd;
+                    }
+                    if ( valid && values[ 2 ] > 0.0 && values[ 3 ] > 0.0 )
+                    {
+                        viewBoxWidth = values[ 2 ];
+                        viewBoxHeight = values[ 3 ];
+                        hasViewBox = true;
+                    }
+                }
+            }
+
+            if ( !hasWidth && hasViewBox )
+            {
+                width = viewBoxWidth;
+                hasWidth = true;
+            }
+            if ( !hasHeight && hasViewBox )
+            {
+                height = viewBoxHeight;
+                hasHeight = true;
+            }
+            if ( hasWidth && hasHeight )
+                SetImageDimensions( width, height );
+            return;
+        }
+    } //EnumerateSVG
+
+    void EnumerateGIF()
+    {
+        if ( g_pStream->Length() < 10 )
+            return;
+
+        char header[ 10 ] = {};
+        GetBytes( 0, header, sizeof header );
+        if ( 0 != memcmp( header, "GIF87a", 6 ) && 0 != memcmp( header, "GIF89a", 6 ) )
+            return;
+
+        SetImageDimensions( GetWORD( 6, true ), GetWORD( 8, true ) );
+    } //EnumerateGIF
+
+    void ParseContainerExif( __int64 offset, __int64 length, WCHAR const * pwcExt )
+    {
+        if ( offset < 0 || length < 8 || offset > g_pStream->Length() ||
+             length > g_pStream->Length() - offset )
+            return;
+
+        DWORD offsetToTiff = GetDWORD( offset, false );
+        if ( offsetToTiff > (ULONGLONG) length - 4 )
+            return;
+        __int64 tiffOffset = offset + 4 + offsetToTiff;
+        if ( tiffOffset < offset || tiffOffset > offset + length - 8 )
+            return;
+
+        char prefix[ 6 ] = {};
+        GetBytes( tiffOffset, prefix, sizeof prefix );
+        if ( 0 == memcmp( prefix, "Exif\0\0", sizeof prefix ) )
+            tiffOffset += sizeof prefix;
+        if ( tiffOffset > offset + length - 8 )
+            return;
+
+        WORD byteOrder = GetWORD( tiffOffset, false );
+        bool littleEndian = ( 0x4949 == byteOrder );
+        if ( !littleEndian && 0x4d4d != byteOrder )
+            return;
+        if ( 42 != GetWORD( tiffOffset + 2, littleEndian ) )
+            return;
+
+        DWORD ifdOffset = GetDWORD( tiffOffset + 4, littleEndian );
+        if ( ifdOffset <= LLONG_MAX - tiffOffset )
+            EnumerateIFD0( ifdOffset, tiffOffset, littleEndian, pwcExt );
+    } //ParseContainerExif
+
+    bool EnumerateJPEG2000Codestream( __int64 offset, __int64 length )
+    {
+        if ( offset < 0 || length < 2 || offset > g_pStream->Length() ||
+             length > g_pStream->Length() - offset )
+            return false;
+
+        __int64 end = offset + length;
+        __int64 markerOffset = offset;
+        while ( markerOffset < end - 2 )
+        {
+            if ( 0xff != GetBYTE( markerOffset ) )
+                return false;
+            while ( markerOffset < end && 0xff == GetBYTE( markerOffset ) )
+                markerOffset++;
+            if ( markerOffset >= end )
+                return false;
+
+            BYTE marker = GetBYTE( markerOffset++ );
+            if ( 0x4f == marker || 0x92 == marker || ( marker >= 0xd0 && marker <= 0xd7 ) )
+                continue;
+            if ( 0x93 == marker || 0xd9 == marker )
+                return ( -1 != g_ImageWidth && -1 != g_ImageHeight );
+            if ( markerOffset > end - 2 )
+                return false;
+
+            WORD segmentLength = GetWORD( markerOffset, false );
+            if ( segmentLength < 2 || segmentLength > end - markerOffset )
+                return false;
+            if ( 0x51 == marker && segmentLength >= 38 )
+            {
+                DWORD imageWidth = GetDWORD( markerOffset + 4, false );
+                DWORD imageHeight = GetDWORD( markerOffset + 8, false );
+                DWORD originX = GetDWORD( markerOffset + 12, false );
+                DWORD originY = GetDWORD( markerOffset + 16, false );
+                if ( imageWidth < originX || imageHeight < originY )
+                    return false;
+                SetImageDimensions( imageWidth - originX, imageHeight - originY );
+                return ( -1 != g_ImageWidth && -1 != g_ImageHeight );
+            }
+
+            markerOffset += segmentLength;
+        }
+        return false;
+    } //EnumerateJPEG2000Codestream
+
+    void EnumerateJPEG2000( WCHAR const * pwcExt )
+    {
+        __int64 length = g_pStream->Length();
+        if ( length < 2 )
+            return;
+
+        if ( 0xff == GetBYTE( 0 ) && 0x4f == GetBYTE( 1 ) )
+        {
+            EnumerateJPEG2000Codestream( 0, length );
+            return;
+        }
+        if ( length < 12 || GetDWORD( 0, false ) != 12 ||
+             GetDWORD( 4, false ) != 0x6a502020 || GetDWORD( 8, false ) != 0x0d0a870a )
+            return;
+
+        __int64 exifOffset = 0;
+        __int64 exifLength = 0;
+        __int64 offset = 0;
+        while ( offset <= length - 8 )
+        {
+            ULONGLONG boxLength = GetDWORD( offset, false );
+            char type[ 5 ] = {};
+            GetBytes( offset + 4, type, 4 );
+            __int64 headerLength = 8;
+            if ( 1 == boxLength )
+            {
+                if ( offset > length - 16 )
+                    return;
+                boxLength = GetULONGLONG( offset + 8, false );
+                headerLength = 16;
+            }
+            else if ( 0 == boxLength )
+                boxLength = length - offset;
+            if ( boxLength < (ULONGLONG) headerLength || boxLength > (ULONGLONG) ( length - offset ) )
+                return;
+
+            __int64 payload = offset + headerLength;
+            __int64 payloadLength = (__int64) boxLength - headerLength;
+            if ( 0 == memcmp( type, "jp2h", 4 ) )
+            {
+                __int64 child = payload;
+                __int64 boxEnd = offset + (__int64) boxLength;
+                while ( child <= boxEnd - 8 )
+                {
+                    DWORD childLength = GetDWORD( child, false );
+                    char childType[ 5 ] = {};
+                    GetBytes( child + 4, childType, 4 );
+                    if ( childLength < 8 || childLength > (DWORD) ( boxEnd - child ) )
+                        break;
+
+                    __int64 childPayload = child + 8;
+                    DWORD childPayloadLength = childLength - 8;
+                    if ( 0 == memcmp( childType, "ihdr", 4 ) && childPayloadLength >= 14 )
+                    {
+                        DWORD height = GetDWORD( childPayload, false );
+                        DWORD width = GetDWORD( childPayload + 4, false );
+                        SetImageDimensions( width, height );
+                    }
+                    child += childLength;
+                }
+            }
+            else if ( 0 == memcmp( type, "uuid", 4 ) && payloadLength >= 16 )
+            {
+                static const BYTE exifUUID[ 16 ] =
+                    { 0xb1, 0x4b, 0xf8, 0xbd, 0x08, 0x3d, 0x4b, 0x43,
+                      0xa5, 0xae, 0x8c, 0xd7, 0xd5, 0xa6, 0xce, 0x03 };
+                BYTE uuid[ 16 ] = {};
+                GetBytes( payload, uuid, sizeof uuid );
+                if ( 0 == memcmp( uuid, exifUUID, sizeof uuid ) )
+                {
+                    exifOffset = payload + 16;
+                    exifLength = payloadLength - 16;
+                }
+            }
+            else if ( 0 == memcmp( type, "jp2c", 4 ) )
+                EnumerateJPEG2000Codestream( payload, payloadLength );
+
+            offset += (__int64) boxLength;
+        }
+
+        if ( exifOffset )
+            ParseContainerExif( exifOffset, exifLength, pwcExt );
+    } //EnumerateJPEG2000
+
+    void EnumerateJXL( WCHAR const * pwcExt )
+    {
+        __int64 length = g_pStream->Length();
+        static const BYTE signature[ 12 ] =
+            { 0x00, 0x00, 0x00, 0x0c, 'J', 'X', 'L', ' ', 0x0d, 0x0a, 0x87, 0x0a };
+        if ( length < (int) sizeof signature )
+            return;
+
+        BYTE header[ sizeof signature ] = {};
+        GetBytes( 0, header, sizeof header );
+        if ( 0 != memcmp( header, signature, sizeof signature ) )
+            return;
+
+        __int64 exifOffset = 0;
+        __int64 exifLength = 0;
+        __int64 offset = sizeof signature;
+        while ( offset <= length - 8 )
+        {
+            ULONGLONG boxLength = GetDWORD( offset, false );
+            char type[ 5 ] = {};
+            GetBytes( offset + 4, type, 4 );
+            __int64 headerLength = 8;
+            if ( 1 == boxLength )
+            {
+                if ( offset > length - 16 )
+                    return;
+                boxLength = GetULONGLONG( offset + 8, false );
+                headerLength = 16;
+            }
+            else if ( 0 == boxLength )
+                boxLength = length - offset;
+            if ( boxLength < (ULONGLONG) headerLength || boxLength > (ULONGLONG) ( length - offset ) )
+                return;
+
+            if ( 0 == memcmp( type, "Exif", 4 ) )
+            {
+                exifOffset = offset + headerLength;
+                exifLength = (__int64) boxLength - headerLength;
+            }
+            offset += (__int64) boxLength;
+        }
+
+        if ( exifOffset )
+            ParseContainerExif( exifOffset, exifLength, pwcExt );
+    } //EnumerateJXL
+
     void EnumerateImageData( HANDLE hFile, const WCHAR * pwc )
     {
         g_pStream = new CStream( hFile, true );
@@ -2698,7 +3293,9 @@ private:
         __int64 heifOffsetBase = 0;
 
         if ( !_wcsicmp( pwcExt, L".heic" ) ||          // Apple iOS photos
-                  !_wcsicmp( pwcExt, L".hif" ) )            // Canon HEIF photos
+             !_wcsicmp( pwcExt, L".heif" ) ||
+             !_wcsicmp( pwcExt, L".avif" ) ||
+             !_wcsicmp( pwcExt, L".hif" ) )            // Canon HEIF photos
         {
             // enumeration of the heif file is just to find the EXIF data offset, reflected in the g_Heif_Exif_* variables
     
@@ -2721,6 +3318,30 @@ private:
                 g_pStream = NULL;
                 return;
             }
+        }
+        else if ( !_wcsicmp( pwcExt, L".gif" ) )
+        {
+            EnumerateGIF();
+            g_pStream = NULL;
+            return;
+        }
+        else if ( !_wcsicmp( pwcExt, L".svg" ) )
+        {
+            EnumerateSVG();
+            g_pStream = NULL;
+            return;
+        }
+        else if ( !_wcsicmp( pwcExt, L".jp2" ) || !_wcsicmp( pwcExt, L".j2k" ) )
+        {
+            EnumerateJPEG2000( pwcExt );
+            g_pStream = NULL;
+            return;
+        }
+        else if ( !_wcsicmp( pwcExt, L".jxl" ) )
+        {
+            EnumerateJXL( pwcExt );
+            g_pStream = NULL;
+            return;
         }
         else if ( !_wcsicmp( pwcExt, L".cr3" ) )        // Canon's newer RAW format
         {

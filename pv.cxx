@@ -139,6 +139,7 @@ const WCHAR * imageExtensions[] =
 {
     L"3fr",
     L"arw",
+    L"avif",
     L"bmp",
     L"cr2",
     L"cr3",
@@ -146,18 +147,23 @@ const WCHAR * imageExtensions[] =
     L"dng",
     L"flac",
     L"gif",
-    L"heic",   
+    L"heic",
+    L"heif",
     L"hif",
     L"ico",
+    L"j2k",
     L"jfif",
     L"jpeg",
+    L"jp2",
     L"jpg",
+    L"jxl",
     L"mp3",
     L"nef",
     L"orf",
     L"png",
     L"raf",
     L"rw2",
+    L"svg",
     L"tif",
     L"tiff",
     L"webp",
@@ -2190,4 +2196,3 @@ int WINAPI wWinMain( _In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,
 
     return 0;
 } //wWinMain
-
